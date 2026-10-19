@@ -33,6 +33,8 @@ The CI container builds **only the message package**, not a hardware driver.
 source /opt/ros/humble/setup.bash
 source /path/to/messages-or-seeed-workspace/install/setup.bash
 source .venv/bin/activate  # Created with the ROS system Python and --system-site-packages.
+python -m pip install 'pip==25.3'  # Editable-build support with Humble's system packages.
+python -m pip install -e '.[test]'
 bash scripts/test-ros.sh
 ```
 

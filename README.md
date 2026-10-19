@@ -16,6 +16,7 @@ Use Python **3.10–3.12** on Linux; ROS 2 Humble uses Ubuntu 22.04's system Pyt
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+python -m pip install 'pip==25.3'
 python -m pip install -e '.[dev]'
 inspect-robots list
 python -m pytest

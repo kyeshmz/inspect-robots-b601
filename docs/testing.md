@@ -86,6 +86,14 @@ policy moves toward a goal relative to the trial's initial measured pose; it
 does not keep accumulating nudges every step. No automatic homing or return
 motion is performed between trials.
 
+The manually dispatched **Official Seeed mock** workflow runs this stage on a
+GitHub-hosted Humble container. It builds only the pinned description/bringup
+and MoveIt configuration packages, installs no motor SDK, and starts only the
+official `GenericSystem` mock. `scripts/smoke-official-mock.py` owns that launch,
+verifies it before evaluation, runs both benchmarks and shuts down only its own
+process group. Do not run that wrapper alongside another domain-61 mock. Use
+`b601-evaluate` to attach to an existing mock instead.
+
 ## 4. LLM in simulation, explicitly opt in
 
 Only after stages 1–3 pass:

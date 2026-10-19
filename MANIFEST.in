@@ -1,5 +1,5 @@
 include README.md
 recursive-include docs *.md
 recursive-include tests *.py *.json
-recursive-include scripts *.sh
+recursive-include scripts *.sh *.py
 global-exclude *.py[cod]

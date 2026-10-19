@@ -59,7 +59,8 @@ stop evidence and verified SDK hashes remain enforced.
 2. **ROS protocol:** `bash scripts/test-ros.sh` — actual ROS action servers with
    fake joints/cameras on a dedicated localhost-only test domain.
 3. **Official ROS mock:** launch the official mock separately, then run
-   `b601-evaluate ros-mock --task hold` and `--task joint1-nudge`.
+   `b601-evaluate ros-mock --task hold` and `--task joint1-nudge`, or dispatch the
+   hosted **Official Seeed mock** workflow to build and test the pinned mock.
 4. **Agent simulation:** opt-in `b601-evaluate agent-sim`, with an explicit model
    and paid-inference acknowledgement, against the verified mock only.
 5. **Physical commissioning:** separate `b601-commission` operator commands;

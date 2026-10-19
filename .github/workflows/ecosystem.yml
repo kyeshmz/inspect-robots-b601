@@ -1,0 +1,20 @@
+name: Optional ecosystem mock
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  stationery-mock:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install . 'stationerybench @ git+https://github.com/robocurve/stationerybench@43d5dd380eeb9f555fe691a896a076cf43d3b18b'
+      - name: Run only StationeryBench's abstract scripted mock
+        run: inspect-robots run --task stationerybench/uncap_marker --policy stationery_scripted --embodiment stationery --epochs 2 --no-prompt --grader none --no-rerun --no-rerun-save --log-dir logs/stationery-mock
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stationery-mock
+          path: logs/

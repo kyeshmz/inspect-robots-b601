@@ -69,9 +69,7 @@ def test_symlinked_ancestor_is_rejected(tmp_path):
 def test_deadline_fault_is_retained_after_acknowledged_disable(tmp_path):
     from tests.test_direct_core import FakeLedger
 
-    profile = json.loads(
-        (Path(__file__).parent / "fixtures/joint1.synthetic.json").read_text()
-    )
+    profile = json.loads((Path(__file__).parent / "fixtures/joint1.synthetic.json").read_text())
     motor, ledger, owner = FakeMotor(), FakeLedger(), FakeOwner()
     session = DirectSession(
         profile,

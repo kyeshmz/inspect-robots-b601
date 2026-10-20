@@ -148,10 +148,13 @@ class DirectSession:
         self._existing_state_only = existing_state_only
         self._active_timeout_s = active_timeout_s
         self._active_deadline: float | None = None
+        self._worker_close_failed = False
 
     @property
     def report(self) -> ErrorReport | None:
         """Immutable owner-held report, including faults retained after close."""
+        if self._worker_close_failed:
+            raise RuntimeError("Worker termination unconfirmed; final error receipt unavailable")
         with self._lock:
             return None if self.core is None else self.core.report
 
@@ -333,9 +336,11 @@ class DirectSession:
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             if self._thread.is_alive():
+                self._worker_close_failed = True
                 raise RuntimeError(
                     "Motor worker did not exit; cancellation and ownership release unconfirmed"
                 )
+            self._worker_close_failed = False
         with self._lock:
             report = None if self.core is None else self.core.close()
             if report is not None:

@@ -22,6 +22,64 @@ test manufactures operational recovery evidence for a real robot.
 GitHub Actions runs this gate on Python 3.10, 3.11 and 3.12. Its separate package
 job builds an sdist and a wheel from that sdist, checks metadata, and installs
 the wheel into a fresh environment before testing discovery and lazy imports.
+It then installs agent 0.28.0 and runs the same agent scenarios against that
+installed wheel, including JSON readback and HTML report rendering.
+
+### Installed-wheel agent acceptance
+
+This software check needs Linux, Python 3.10 through 3.12, and a source checkout
+for the test runner. Downloads need network access. The evaluation needs no ROS,
+CAN device, model key, hardware service, or paid inference.
+
+From the checkout, create a fresh environment for the public release wheel:
+
+```bash
+CHECKOUT="$PWD"
+RUN="$(mktemp -d)"
+python3.12 -m venv "$RUN/wheel"
+"$RUN/wheel/bin/python" -m pip install \
+  'https://github.com/kyeshmz/inspect-robots-b601/releases/download/v0.4.0/inspect_robots_b601-0.4.0-py3-none-any.whl' \
+  'inspect-robots-agent==0.28.0'
+"$RUN/wheel/bin/python" -m pip check
+cd "$RUN"
+"$RUN/wheel/bin/python" -I "$CHECKOUT/tests/packaging/test_installed.py"
+"$RUN/wheel/bin/python" -I "$CHECKOUT/tests/test_agent.py" --artifacts-dir "$RUN/agent"
+```
+
+The runner rejects editable installs, wrong package origins, or versions other
+than B601 0.4.0, Inspect 0.60.0, and agent 0.28.0. It also checks NumPy below 2.
+For a branch wheel, run `python -m build --outdir "$RUN/dist"` from the checkout
+with the `dev` extra installed. Repeat in a second fresh environment, replacing
+the release URL with `"$RUN"/dist/*.whl`. Do not overwrite the public-wheel
+environment. Distribution CI performs this branch-wheel check automatically.
+
+Both scenarios resolve the real `b601_ros`, `b601/joint1-nudge`, and `agent`
+registry entries. They keep the B601 adapter, agent tool selection and
+interpolation, clamp and delta approvers, Inspect evaluation, measured scorer,
+and default JSON sink real. Only `RosSession` I/O and the provider HTTP transport
+are fake. The provider receives an empty credential environment and a reserved
+`.invalid` endpoint. A socket guard forbids real network and CAN sockets during
+evaluation.
+
+| Scenario | Expected behavior |
+| --- | --- |
+| Measured nudge | Two provider requests. Joint1 absolute targets of 0.00075, 0.0015, and 0.0015 rad. The last command holds on `done`. Other joints stay at their initial measured positions. Three executed steps and measured score 1.0. |
+| `done` without motion | One provider request and one hold command. Execution completes, but measured score is 0.0. A success claim cannot replace measured motion. |
+
+The runner verifies finite six-dimensional commands, unchanged other joints,
+the measured final pose, session cleanup, log identities, epoch metrics, and
+`done` termination. It reloads the JSON through `read_eval_log` and checks the
+agent transcript sidecar. It renders each log with the installed
+`inspect-robots view LOG.json --no-video -o REPORT.html` command and checks the
+B601 identity, metric, and tool transcript in the report. It opens no browser
+or server. Provider requests, commands, JSON logs, transcripts, and reports
+remain under `$RUN/agent`. CI retains them as `installed-agent-evidence`.
+
+The public v0.4.0 wheel passed both scenarios on Python 3.10, 3.11, and 3.12
+in the 2026-10-20 review. A freshly built branch wheel also passed on Python
+3.12. This proves the offline software path, not a live provider, actual ROS
+protocol, SDK compatibility, model competence, or physical tracking readiness.
+Continue with the separate ROS stages below only when you need those checks.
 
 ## 2. Actual ROS protocol, fake controller
 

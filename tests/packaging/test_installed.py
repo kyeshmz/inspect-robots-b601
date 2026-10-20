@@ -101,19 +101,17 @@ assert not {"rclpy", "motorbridge", "b601_hardware.direct"} & sys.modules.keys()
         self.assertIn("b601_motorbridge", result.stdout)
         self.assertNotIn("failed to load", result.stderr)
 
-    def test_realtime_help_is_available_without_optional_network_dependencies(self):
-        code = """
-import sys
-from inspect_robots_b601.realtime import main
-assert "aiortc" not in sys.modules
-assert "httpx" not in sys.modules
-main(["--help"])
-"""
-        result = subprocess.run(
-            [sys.executable, "-I", "-c", code], check=True, capture_output=True, text=True
+    def test_removed_cloud_transport_is_not_in_the_installed_distribution(self):
+        dist = distribution("inspect-robots-b601")
+        self.assertNotIn("realtime", dist.metadata.get_all("Provides-Extra", []))
+        self.assertFalse(any(point.name == "b601-realtime" for point in dist.entry_points))
+        self.assertFalse(any("aiortc" in requirement.lower() for requirement in dist.requires))
+        self.assertFalse(
+            any(
+                "_realtime/" in str(path) or str(path).endswith("/realtime.py")
+                for path in dist.files
+            )
         )
-        self.assertIn("operator", result.stdout)
-        self.assertIn("robot", result.stdout)
 
     def test_ros_conformance_without_ros(self):
         from inspect_robots.conformance import assert_embodiment_conformant

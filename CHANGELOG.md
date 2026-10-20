@@ -3,6 +3,22 @@
 This package has its own [SemVer policy](docs/versioning.md); its version does
 not track the Inspect Robots framework's version.
 
+## [0.4.0] - 2026-10-20
+
+### Removed
+- Cloudflare Realtime integration, network role CLI, optional dependencies, credentials template and transport-specific tests.
+- Hosted-service setup from the README and operator/robot quickstart. The repository is a local Inspect Robots integration again.
+
+### Preserved
+- Pip-installable package, B601 adapters, measured benchmarks, strict typing, CI and optional PyPI publishing workflow.
+- Official Hugging Face artwork, centered banner badges and simplified arm diagram.
+- Existing motion limits, controller ownership and physical commissioning gates.
+
+### Migration
+- Upgrade to this version without the old `realtime` extra; `b601-realtime` is no longer provided.
+- Run `b601-evaluate` beside the ROS mock or use the documented local commissioning procedure. No replacement network service is required.
+- Older version tags and release artifacts remain unchanged; this is the new local-only release.
+
 ## [0.3.0] - 2026-10-19
 
 ### Added

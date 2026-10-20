@@ -101,12 +101,26 @@ def test_banner_uses_official_huggingface_paths_and_geometrically_centered_badge
         assert float(text.get("y")) == float(box.get("y")) + float(box.get("height")) / 2
 
 
-def test_two_computer_guide_and_publishing_do_not_claim_a_tunnel_or_pypi_deployment():
+def test_quickstart_is_local_only_and_does_not_claim_pypi_publication():
     guide = (ROOT / "docs/quickstart.md").read_text()
     assert "Operator computer" in guide and "Robot computer" in guide
-    assert "No Cloudflare Tunnel" in guide
-    assert "physical_activation_available: false" in guide
+    assert "python -m pytest" in guide
+    assert "b601-evaluate ros-mock" in guide
+    for removed in ("CLOUDFLARE_", "b601-realtime", "[realtime]"):
+        assert removed not in guide
+        assert removed not in (ROOT / "README.md").read_text()
     assert "v" + version("inspect-robots-b601") in guide
     publishing = (ROOT / "docs/publishing.md").read_text()
     assert "pending publisher" in publishing
     assert "publish.yml" in publishing
+
+
+def test_cloud_transport_is_not_part_of_the_shipped_source_or_metadata():
+    from importlib.metadata import distribution
+
+    project = distribution("inspect-robots-b601")
+    assert "realtime" not in project.metadata.get_all("Provides-Extra", [])
+    assert all(point.name != "b601-realtime" for point in project.entry_points)
+    assert all("aiortc" not in requirement.lower() for requirement in project.requires)
+    assert not (ROOT / "src/inspect_robots_b601/realtime.py").exists()
+    assert not (ROOT / "src/inspect_robots_b601/_realtime/__init__.py").exists()

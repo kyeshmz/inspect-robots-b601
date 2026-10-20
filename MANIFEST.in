@@ -1,5 +1,4 @@
 include README.md
-include .env.example
 include CHANGELOG.md CONTRIBUTING.md
 recursive-include assets *.svg *.png *.md
 recursive-include src py.typed

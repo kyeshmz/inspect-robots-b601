@@ -45,8 +45,9 @@ While this package is **0.y.z**, its API is still experimental:
 Versioned releases are immutable. Do not replace an existing tag or published
 artifact. A tag is `vX.Y.Z`; Python package metadata uses `X.Y.Z`. Development
 changes can accumulate under an unreleased changelog entry until that version is
-deliberately tagged. Version 0.3.0 adds the optional two-computer Realtime CLI,
-so it is a minor increment rather than a patch. GitHub release assets and PyPI
+deliberately tagged. Version 0.4.0 removes the previous optional network CLI and
+its extra, so this pre-1.0 public-interface removal uses a minor increment rather
+than a patch. The B601 adapters and their safety limits are unchanged. GitHub release assets and PyPI
 publication are separate: a public wheel can be installed directly before the
 PyPI account's trusted publisher is configured. See [publishing](publishing.md).
 
@@ -59,7 +60,7 @@ ruff format --check src tests scripts
 python -m mypy
 python -m pytest --cov
 python -m scripts.check_version
-python -m scripts.check_version --tag v0.3.0  # Use the version in pyproject.toml.
+python -m scripts.check_version --tag v0.4.0  # Use the version in pyproject.toml.
 python -m build
 python -m twine check dist/*
 ```

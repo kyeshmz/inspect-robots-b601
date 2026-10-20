@@ -5,13 +5,13 @@ source archives, entry points and `py.typed` markers. Installing a wheel or a
 public Git tag does not require PyPI publication:
 
 ```bash
-python -m pip install 'git+https://github.com/kyeshmz/inspect-robots-b601.git@v0.3.0'
-python -m pip install 'inspect-robots-b601[realtime] @ git+https://github.com/kyeshmz/inspect-robots-b601.git@v0.3.0'
+python -m pip install 'git+https://github.com/kyeshmz/inspect-robots-b601.git@v0.4.0'
 ```
 
 Use Python 3.10–3.12. Wheels are also attached to
 [GitHub Releases](https://github.com/kyeshmz/inspect-robots-b601/releases).
-The optional `agent`, `motorbridge` and `realtime` dependencies remain opt-in.
+The optional `agent` and `motorbridge` dependencies remain opt-in. The package
+does not require a hosted service or remote transport.
 
 ## Enable the short PyPI name once
 
@@ -40,19 +40,19 @@ wheel before asking PyPI for a short-lived upload credential.
 After that account-side setup, a maintainer can explicitly dispatch:
 
 ```bash
-gh workflow run publish.yml --repo kyeshmz/inspect-robots-b601 -f tag=v0.3.0
+gh workflow run publish.yml --repo kyeshmz/inspect-robots-b601 -f tag=v0.4.0
 ```
 
 Do not dispatch before the pending publisher is configured. The workflow does
 not create an account, claim a project name, guess credentials, change an
-existing tag or silently skip an upload failure. Never paste PyPI tokens or the
-Cloudflare App Secret into chat, a workflow file or a package artifact.
+existing tag or silently skip an upload failure. Never paste PyPI tokens or
+model API keys into chat, a workflow file or a package artifact.
 
 After a successful upload, verify the PyPI project and a fresh install before
 advertising the short form:
 
 ```bash
-python -m pip install 'inspect-robots-b601[realtime]==0.3.0'
+python -m pip install 'inspect-robots-b601==0.4.0'
 ```
 
 Published versions are immutable; choose a new version for a changed artifact.

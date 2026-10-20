@@ -75,11 +75,11 @@ B601 identity, metric, and tool transcript in the report. It opens no browser
 or server. Provider requests, commands, JSON logs, transcripts, and reports
 remain under `$RUN/agent`. CI retains them as `installed-agent-evidence`.
 
-The public v0.4.0 wheel and a freshly built branch wheel passed both scenarios
-on Python 3.12 in the 2026-10-20 review. This proves the offline software path,
-not a live provider, actual ROS protocol, SDK compatibility, model competence,
-or physical tracking readiness. Continue with the separate ROS stages below
-only when you need those checks.
+The public v0.4.0 wheel passed both scenarios on Python 3.10, 3.11, and 3.12
+in the 2026-10-20 review. A freshly built branch wheel also passed on Python
+3.12. This proves the offline software path, not a live provider, actual ROS
+protocol, SDK compatibility, model competence, or physical tracking readiness.
+Continue with the separate ROS stages below only when you need those checks.
 
 ## 2. Actual ROS protocol, fake controller
 

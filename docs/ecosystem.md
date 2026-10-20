@@ -112,9 +112,10 @@ was involved. Live inference still requires an authorized provider and the
 
 Confirmed limits remain:
 
-- CaP-X 0.3.1 rejects the default B601 configuration at bind time because the
-  camera, gripper, and IK capabilities it requires are absent. Installing the
-  package does not supply them.
+- CaP-X 0.3.1 rejects the default B601 configuration at bind time because no
+  gripper is declared. Camera, perception, IK, calibration, and isolated
+  generated-code execution also remain unqualified. Installing the package
+  does not supply those integrations.
 - XPolicyLab 0.1.0 defaults to an eight-dimensional action space. Default B601
   ROS actions have six dimensions. A compatible checkpoint and explicit
   observation/action mapping are required before evaluation.

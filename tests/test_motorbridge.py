@@ -49,13 +49,21 @@ class MotorbridgeTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.report = Path(self.directory.name) / "trial.json"
         self.profile = ROOT / "tests/fixtures/joint1.synthetic.json"
-        self.report.write_text(json.dumps({
-            "schema": "b601-direct-joint1-test-v1", "success": True, "cleanup": [],
-            "profile_sha256": hashlib.sha256(self.profile.read_bytes()).hexdigest(),
-            "recorded_at_unix_s": time.time(), "requested_delta_rad": 0.005,
-            "duration_s": 2.0, "disable_acknowledged": True,
-            "measured_delta_rad": 0.005,
-        }))
+        self.report.write_text(
+            json.dumps(
+                {
+                    "schema": "b601-direct-joint1-test-v1",
+                    "success": True,
+                    "cleanup": [],
+                    "profile_sha256": hashlib.sha256(self.profile.read_bytes()).hexdigest(),
+                    "recorded_at_unix_s": time.time(),
+                    "requested_delta_rad": 0.005,
+                    "duration_s": 2.0,
+                    "disable_acknowledged": True,
+                    "measured_delta_rad": 0.005,
+                }
+            )
+        )
 
     def robot(self, **kwargs):
         robot = MotorbridgeB601Embodiment(profile=str(self.profile), **kwargs)
@@ -63,8 +71,12 @@ class MotorbridgeTests(unittest.TestCase):
         return robot
 
     def activated(self):
-        return self.robot(allow_motion=True, activate_on_reset=True,
-                          operator_supported_arm=True, tracking_report=str(self.report))
+        return self.robot(
+            allow_motion=True,
+            activate_on_reset=True,
+            operator_supported_arm=True,
+            tracking_report=str(self.report),
+        )
 
     def test_constructor_is_hardware_free_and_one_axis_is_honest(self):
         robot = self.robot()
@@ -78,10 +90,12 @@ class MotorbridgeTests(unittest.TestCase):
             MotorbridgeB601Embodiment()
 
     def test_activation_needs_all_explicit_flags_and_tracking_report(self):
-        for options in ({"activate_on_reset": True},
-                        {"allow_motion": True, "activate_on_reset": True},
-                        {"allow_motion": True, "activate_on_reset": True, "operator_supported_arm": True},
-                        {"allow_motion": "true"}):
+        for options in (
+            {"activate_on_reset": True},
+            {"allow_motion": True, "activate_on_reset": True},
+            {"allow_motion": True, "activate_on_reset": True, "operator_supported_arm": True},
+            {"allow_motion": "true"},
+        ):
             with self.subTest(options=options), self.assertRaises(ValueError):
                 self.robot(**options)
 

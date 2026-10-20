@@ -2,10 +2,10 @@
 
 import io
 import os
+import tempfile
 import threading
 import time
 import unittest
-import tempfile
 from types import SimpleNamespace
 
 import numpy as np
@@ -26,8 +26,8 @@ from std_msgs.msg import Header
 
 from inspect_robots_b601 import B601Embodiment
 from inspect_robots_b601._ros import RosSession
-from inspect_robots_b601.embodiment import JOINTS, SIM_LOW, SIM_HIGH
 from inspect_robots_b601.benchmarks import JointGoalPolicy, hold, joint1_nudge
+from inspect_robots_b601.embodiment import JOINTS, SIM_HIGH, SIM_LOW
 
 
 class ActionTests(unittest.TestCase):
@@ -39,18 +39,27 @@ class ActionTests(unittest.TestCase):
         self.node = rclpy.create_node("inspect_b601_fake_controller", context=self.context)
         self.executor = SingleThreadedExecutor(context=self.context)
         self.executor.add_node(self.node)
-        self.positions = [0., 1., 1., 0., 0., 0.]
+        self.positions = [0.0, 1.0, 1.0, 0.0, 0.0, 0.0]
         self.gripper_position = 0.2
         self.mode = "success"
         self.publishing = True
         self.cancelled = threading.Event()
         self.group = ReentrantCallbackGroup()
-        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
-                         durability=DurabilityPolicy.TRANSIENT_LOCAL)
-        self.state_pub = self.node.create_publisher(JointState, "/rebotarm/joint_states", qos_profile_sensor_data)
-        self.gripper_pub = self.node.create_publisher(JointMotorState, "/rebotarm/gripper/state", qos_profile_sensor_data)
+        qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.state_pub = self.node.create_publisher(
+            JointState, "/rebotarm/joint_states", qos_profile_sensor_data
+        )
+        self.gripper_pub = self.node.create_publisher(
+            JointMotorState, "/rebotarm/gripper/state", qos_profile_sensor_data
+        )
         self.status_pub = self.node.create_publisher(ArmStatus, "/rebotarm/arm_status", qos)
-        self.camera_pub = self.node.create_publisher(CompressedImage, "/inspect_test/camera/compressed", qos_profile_sensor_data)
+        self.camera_pub = self.node.create_publisher(
+            CompressedImage, "/inspect_test/camera/compressed", qos_profile_sensor_data
+        )
         image = io.BytesIO()
         Image.new("RGB", (8, 6), color=(255, 0, 0)).save(image, format="JPEG")
         self.image = image.getvalue()
@@ -58,20 +67,34 @@ class ActionTests(unittest.TestCase):
         self.status_pub.publish(self.status)
         self.timer = self.node.create_timer(0.02, self.publish, callback_group=self.group)
         self.arm = ActionServer(
-            self.node, FollowJointTrajectory, "/rebotarm/follow_joint_trajectory",
-            self.execute, goal_callback=self.accept,
-            cancel_callback=lambda _: CancelResponse.ACCEPT, callback_group=self.group,
+            self.node,
+            FollowJointTrajectory,
+            "/rebotarm/follow_joint_trajectory",
+            self.execute,
+            goal_callback=self.accept,
+            cancel_callback=lambda _: CancelResponse.ACCEPT,
+            callback_group=self.group,
         )
         self.gripper = ActionServer(
-            self.node, GripperCommand, "/rebotarm/gripper/command", self.execute_gripper,
-            cancel_callback=lambda _: CancelResponse.ACCEPT, callback_group=self.group,
+            self.node,
+            GripperCommand,
+            "/rebotarm/gripper/command",
+            self.execute_gripper,
+            cancel_callback=lambda _: CancelResponse.ACCEPT,
+            callback_group=self.group,
         )
         self.thread = threading.Thread(target=self.executor.spin)
         self.thread.start()
         self.robot = B601Embodiment(
-            simulated=False, action_low=SIM_LOW, action_high=SIM_HIGH,
-            timeout_s=1.0, state_timeout_s=0.3, control_hz=10,
-            gripper_open=0.0, gripper_closed=1.0, gripper_max_effort=0.1,
+            simulated=False,
+            action_low=SIM_LOW,
+            action_high=SIM_HIGH,
+            timeout_s=1.0,
+            state_timeout_s=0.3,
+            control_hz=10,
+            gripper_open=0.0,
+            gripper_closed=1.0,
+            gripper_max_effort=0.1,
             cameras="top:/inspect_test/camera/compressed:8x6",
         )
         self.addCleanup(self.cleanup)
@@ -93,13 +116,17 @@ class ActionTests(unittest.TestCase):
             header = Header(stamp=self.node.get_clock().now().to_msg())
             if self.mode == "old_stamp":
                 header.stamp.sec -= 10
-            self.state_pub.publish(JointState(header=header, name=list(JOINTS), position=self.positions))
+            self.state_pub.publish(
+                JointState(header=header, name=list(JOINTS), position=self.positions)
+            )
             self.gripper_pub.publish(JointMotorState(header=header, position=self.gripper_position))
             self.camera_pub.publish(CompressedImage(header=header, format="jpeg", data=self.image))
 
     async def pause(self, seconds):
         future = Future(executor=self.executor)
-        timer = self.node.create_timer(seconds, lambda: future.set_result(None), callback_group=self.group)
+        timer = self.node.create_timer(
+            seconds, lambda: future.set_result(None), callback_group=self.group
+        )
         try:
             await future
         finally:
@@ -139,12 +166,14 @@ class ActionTests(unittest.TestCase):
     def execute_gripper(self, handle):
         self.gripper_position = handle.request.command.position
         handle.succeed()
-        return GripperCommand.Result(position=self.gripper_position,
-                                     reached_goal=self.mode != "gripper_stall",
-                                     stalled=self.mode == "gripper_stall")
+        return GripperCommand.Result(
+            position=self.gripper_position,
+            reached_goal=self.mode != "gripper_stall",
+            stalled=self.mode == "gripper_stall",
+        )
 
     def target(self):
-        return Action(np.array([0.02, 1., 1., 0., 0., 0., 0.22]))
+        return Action(np.array([0.02, 1.0, 1.0, 0.0, 0.0, 0.0, 0.22]))
 
     def test_joint_and_gripper_actions_with_rgb_observation(self):
         result = self.robot.step(self.target())
@@ -224,18 +253,25 @@ class ActionTests(unittest.TestCase):
     def test_registered_benchmarks_use_actual_ros_feedback(self):
         from inspect_robots import eval
         from inspect_robots.approver import DeltaLimitApprover
+
         with tempfile.TemporaryDirectory() as directory:
             for factory in (hold, joint1_nudge):
-                log, = eval(factory(), JointGoalPolicy(), self.robot, log_dir=directory,
-                            approver=DeltaLimitApprover(self.robot.info.action_space, max_delta=0.002))
+                (log,) = eval(
+                    factory(),
+                    JointGoalPolicy(),
+                    self.robot,
+                    log_dir=directory,
+                    approver=DeltaLimitApprover(self.robot.info.action_space, max_delta=0.002),
+                )
                 self.assertEqual(log.status, "success")
                 self.assertEqual(log.results.metrics["b601_measured_goal"], 1.0)
 
     def test_ros_controller_success_without_motion_scores_failure(self):
         from inspect_robots import eval
+
         self.mode = "false_success"
         with tempfile.TemporaryDirectory() as directory:
-            log, = eval(joint1_nudge(), JointGoalPolicy(), self.robot, log_dir=directory)
+            (log,) = eval(joint1_nudge(), JointGoalPolicy(), self.robot, log_dir=directory)
             self.assertEqual(log.status, "success")
             self.assertEqual(log.results.metrics["b601_measured_goal"], 0.0)
 

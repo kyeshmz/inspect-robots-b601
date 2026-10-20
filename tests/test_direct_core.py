@@ -76,8 +76,14 @@ class DirectTests(unittest.TestCase):
     def setUp(self):
         self.profile = json.loads((ROOT / "tests/fixtures/joint1.synthetic.json").read_text())
         self.motor, self.ledger, self.owner = FakeMotor(), FakeLedger(), FakeOwner()
-        self.session = DirectSession(self.profile, "unused", transport=self.motor,
-                                     ledger=self.ledger, owner_factory=lambda: self.owner, period=0.005)
+        self.session = DirectSession(
+            self.profile,
+            "unused",
+            transport=self.motor,
+            ledger=self.ledger,
+            owner_factory=lambda: self.owner,
+            period=0.005,
+        )
         self.addCleanup(self.session.close)
 
     def test_open_observe_and_close_do_not_enable(self):
@@ -139,18 +145,28 @@ class DirectTests(unittest.TestCase):
 
     def test_tracking_report_must_be_successful_recent_and_same_profile(self):
         profile_path = ROOT / "tests/fixtures/joint1.synthetic.json"
-        report = {"schema": "b601-direct-joint1-test-v1", "success": True, "cleanup": [],
-                  "profile_sha256": hashlib.sha256(profile_path.read_bytes()).hexdigest(),
-                  "requested_delta_rad": 0.005, "duration_s": 2.0,
-                  "measured_delta_rad": 0.005,
-                  "disable_acknowledged": True, "recorded_at_unix_s": 1000}
+        report = {
+            "schema": "b601-direct-joint1-test-v1",
+            "success": True,
+            "cleanup": [],
+            "profile_sha256": hashlib.sha256(profile_path.read_bytes()).hexdigest(),
+            "requested_delta_rad": 0.005,
+            "duration_s": 2.0,
+            "measured_delta_rad": 0.005,
+            "disable_acknowledged": True,
+            "recorded_at_unix_s": 1000,
+        }
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "trial.json"
             path.write_text(json.dumps(report))
             validate_tracking_report(path, profile_path, now=lambda: 1100)
-            for changes in ({"success": False}, {"recorded_at_unix_s": 0},
-                            {"profile_sha256": "different"}, {"disable_acknowledged": False},
-                            {"measured_delta_rad": 0.000213}):
+            for changes in (
+                {"success": False},
+                {"recorded_at_unix_s": 0},
+                {"profile_sha256": "different"},
+                {"disable_acknowledged": False},
+                {"measured_delta_rad": 0.000213},
+            ):
                 path.write_text(json.dumps({**report, **changes}))
                 with self.assertRaises(ValueError):
                     validate_tracking_report(path, profile_path, now=lambda: 1100)

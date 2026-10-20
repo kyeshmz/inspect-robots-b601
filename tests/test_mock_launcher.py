@@ -9,7 +9,9 @@ import pytest
 
 
 @pytest.mark.parametrize("failed_task", [None, "hold", "joint1-nudge"])
-def test_launch_is_fixed_to_mock_and_its_own_process_is_cleaned_up(monkeypatch, tmp_path, failed_task):
+def test_launch_is_fixed_to_mock_and_its_own_process_is_cleaned_up(
+    monkeypatch, tmp_path, failed_task
+):
     path = Path(__file__).resolve().parents[1] / "scripts/smoke-official-mock.py"
     spec = importlib.util.spec_from_file_location("official_mock_smoke", path)
     module = importlib.util.module_from_spec(spec)
@@ -23,15 +25,21 @@ def test_launch_is_fixed_to_mock_and_its_own_process_is_cleaned_up(monkeypatch, 
 
     def robot(**options):
         assert options["simulated"] is True
-        return SimpleNamespace(reset=lambda _: events.append("verify"),
-                               close=lambda: events.append("close"))
+        return SimpleNamespace(
+            reset=lambda _: events.append("verify"), close=lambda: events.append("close")
+        )
 
-    process = SimpleNamespace(pid=12345, poll=lambda: None,
-                              wait=lambda **_: events.append("wait"))
+    process = SimpleNamespace(pid=12345, poll=lambda: None, wait=lambda **_: events.append("wait"))
 
     def launch(command, **options):
-        assert command == ["ros2", "launch", "rebotarm_moveit_config", "demo.launch.py",
-                           "model:=rs", "use_rviz:=false"]
+        assert command == [
+            "ros2",
+            "launch",
+            "rebotarm_moveit_config",
+            "demo.launch.py",
+            "model:=rs",
+            "use_rviz:=false",
+        ]
         assert options["start_new_session"] is True
         events.append("launch")
         return process

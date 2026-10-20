@@ -1,6 +1,6 @@
+import json
 import sys
 import unittest
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -9,15 +9,16 @@ import numpy as np
 from inspect_robots import Action, Scene
 from inspect_robots.conformance import assert_embodiment_conformant
 from inspect_robots.errors import EmbodimentFault, SafetyAbort
+
 from inspect_robots_b601 import B601Embodiment
-from inspect_robots_b601.embodiment import JOINTS, SIM_LOW, SIM_HIGH
+from inspect_robots_b601.embodiment import JOINTS, SIM_HIGH, SIM_LOW
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class Session:
     def __init__(self, config):
-        self.position = np.array([0., 1., 1., 0., 0., 0.] + ([0.2] if config.gripper else []))
+        self.position = np.array([0.0, 1.0, 1.0, 0.0, 0.0, 0.0] + ([0.2] if config.gripper else []))
         self.moves = []
         self.closed = False
 
@@ -34,7 +35,9 @@ class Session:
 
 class EmbodimentTests(unittest.TestCase):
     def setUp(self):
-        self.patch = patch.dict(sys.modules, {"inspect_robots_b601._ros": SimpleNamespace(RosSession=Session)})
+        self.patch = patch.dict(
+            sys.modules, {"inspect_robots_b601._ros": SimpleNamespace(RosSession=Session)}
+        )
         self.patch.start()
         self.addCleanup(self.patch.stop)
         self.robot = B601Embodiment()
@@ -43,8 +46,14 @@ class EmbodimentTests(unittest.TestCase):
     def test_network_free_spaces_conform(self):
         self.assertIsNone(self.robot._session)
         assert_embodiment_conformant(self.robot.info)
-        robot = B601Embodiment(simulated=False, action_low=SIM_LOW, action_high=SIM_HIGH,
-                              gripper_open=-0.5, gripper_closed=0.5, gripper_max_effort=0.1)
+        robot = B601Embodiment(
+            simulated=False,
+            action_low=SIM_LOW,
+            action_high=SIM_HIGH,
+            gripper_open=-0.5,
+            gripper_closed=0.5,
+            gripper_max_effort=0.1,
+        )
         assert_embodiment_conformant(robot.info)
 
     def test_sim_bounds_match_pinned_urdf(self):
@@ -55,10 +64,18 @@ class EmbodimentTests(unittest.TestCase):
 
     def test_hardware_requires_explicit_bounds_and_gripper_calibration(self):
         for kwargs in (
-            {"simulated": False}, {"simulated": "false"}, {"control_hz": float("nan")},
-            {"action_low": [0]}, {"action_low": SIM_HIGH},
+            {"simulated": False},
+            {"simulated": "false"},
+            {"control_hz": float("nan")},
+            {"action_low": [0]},
+            {"action_low": SIM_HIGH},
             {"gripper_open": 1.0},
-            {"simulated": False, "action_low": SIM_LOW, "action_high": SIM_HIGH, "gripper_open": 1.0},
+            {
+                "simulated": False,
+                "action_low": SIM_LOW,
+                "action_high": SIM_HIGH,
+                "gripper_open": 1.0,
+            },
         ):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 B601Embodiment(**kwargs)
@@ -87,13 +104,22 @@ class EmbodimentTests(unittest.TestCase):
 
     def test_false_success_is_detected_from_measurements(self):
         self.robot.reset(Scene(id="test", instruction="hold"))
-        with patch.object(self.robot._session, "move"), patch("inspect_robots_b601.embodiment.time.sleep"):
+        with (
+            patch.object(self.robot._session, "move"),
+            patch("inspect_robots_b601.embodiment.time.sleep"),
+        ):
             with self.assertRaisesRegex(EmbodimentFault, "tolerance"):
                 self.robot.step(Action(np.array([0.04, 1, 1, 0, 0, 0])))
 
     def test_gripper_uses_motor_radians_and_explicit_polarity(self):
-        robot = B601Embodiment(simulated=False, action_low=SIM_LOW, action_high=SIM_HIGH,
-                              gripper_open=-0.5, gripper_closed=0.5, gripper_max_effort=0.1)
+        robot = B601Embodiment(
+            simulated=False,
+            action_low=SIM_LOW,
+            action_high=SIM_HIGH,
+            gripper_open=-0.5,
+            gripper_closed=0.5,
+            gripper_max_effort=0.1,
+        )
         try:
             obs = robot.reset(Scene(id="test", instruction="hold"))
             self.assertAlmostEqual(obs.state["gripper"][0], 0.3)

@@ -7,16 +7,22 @@ import pytest
 from inspect_robots_b601.evaluate import main
 
 
-@pytest.mark.parametrize("args", [
-    ["agent-sim"], ["agent-sim", "--model", "openai/test"],
-    ["agent-sim", "--allow-paid-inference"],
-    ["ros-mock", "--allow-paid-inference"],
-    ["ros-mock", "--embodiment", "b601_motorbridge"],
-    ["physical"],
-])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["agent-sim"],
+        ["agent-sim", "--model", "openai/test"],
+        ["agent-sim", "--allow-paid-inference"],
+        ["ros-mock", "--allow-paid-inference"],
+        ["ros-mock", "--embodiment", "b601_motorbridge"],
+        ["physical"],
+    ],
+)
 def test_invalid_or_unacknowledged_stages_never_construct_a_robot(monkeypatch, args):
-    monkeypatch.setattr("inspect_robots_b601.evaluate.B601Embodiment",
-                        lambda **_: pytest.fail("Must reject before constructing a robot"))
+    monkeypatch.setattr(
+        "inspect_robots_b601.evaluate.B601Embodiment",
+        lambda **_: pytest.fail("Must reject before constructing a robot"),
+    )
     with pytest.raises(SystemExit) as error:
         main(args)
     assert error.value.code == 2
@@ -26,8 +32,10 @@ def test_invalid_or_unacknowledged_stages_never_construct_a_robot(monkeypatch, a
 def test_wrong_ros_environment_is_rejected(monkeypatch, domain, local):
     monkeypatch.setenv("ROS_DOMAIN_ID", domain)
     monkeypatch.setenv("ROS_LOCALHOST_ONLY", local)
-    monkeypatch.setattr("inspect_robots_b601.evaluate.B601Embodiment",
-                        lambda **_: pytest.fail("No connection outside isolated mock domain"))
+    monkeypatch.setattr(
+        "inspect_robots_b601.evaluate.B601Embodiment",
+        lambda **_: pytest.fail("No connection outside isolated mock domain"),
+    )
     with pytest.raises(SystemExit):
         main(["ros-mock"])
 
@@ -44,6 +52,7 @@ def test_remote_discovery_is_rejected(monkeypatch, variable):
 @pytest.mark.parametrize("metric,expected", [(1.0, 0), (0.0, 1)])
 def test_runner_checks_the_score_not_just_execution_status(monkeypatch, metric, expected):
     from inspect_robots_b601 import B601Embodiment
+
     monkeypatch.setenv("ROS_DOMAIN_ID", "61")
     monkeypatch.setenv("ROS_LOCALHOST_ONLY", "1")
     monkeypatch.delenv("ROS_DISCOVERY_SERVER", raising=False)
@@ -57,7 +66,13 @@ def test_runner_checks_the_score_not_just_execution_status(monkeypatch, metric, 
         return robot
 
     monkeypatch.setattr("inspect_robots_b601.evaluate.B601Embodiment", construct)
-    monkeypatch.setattr("inspect_robots_b601.evaluate.eval", lambda *_, **__: [SimpleNamespace(
-        status="success", results=SimpleNamespace(metrics={"b601_measured_goal": metric}))])
+    monkeypatch.setattr(
+        "inspect_robots_b601.evaluate.eval",
+        lambda *_, **__: [
+            SimpleNamespace(
+                status="success", results=SimpleNamespace(metrics={"b601_measured_goal": metric})
+            )
+        ],
+    )
     assert main(["ros-mock"]) == expected
     assert calls == ["close"]

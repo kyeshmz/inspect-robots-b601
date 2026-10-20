@@ -37,11 +37,11 @@ from __future__ import annotations
 import math
 import threading
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Real
-from typing import Callable, Protocol, Sequence
-
+from typing import Protocol
 
 JOINT_NAMES = tuple(f"joint{i}" for i in range(1, 7))
 ACTIVE_AXIS = JOINT_NAMES[0]
@@ -248,8 +248,12 @@ class CommissioningCore:
     @property
     def report(self) -> ErrorReport:
         with self._lock:
-            return ErrorReport(self._primary, tuple(self._cleanup), self._disable_ack,
-                               tuple(self._recovery_failures))
+            return ErrorReport(
+                self._primary,
+                tuple(self._cleanup),
+                self._disable_ack,
+                tuple(self._recovery_failures),
+            )
 
     def _time(self, now: float | None = None) -> float:
         value = _number(self._clock() if now is None else now)
@@ -410,13 +414,19 @@ class CommissioningCore:
                 self._fault("start_goal.feedback", exc)
                 raise
             if any(abs(a - b) > MEASURED_TOLERANCE for a, b in zip(targets[1:], feedback.raw[1:])):
-                raise GoalRejected("inactive-axis targets must equal measured positions within tolerance")
+                raise GoalRejected(
+                    "inactive-axis targets must equal measured positions within tolerance"
+                )
             assert self._activation_pose is not None
-            if any(abs(targets[0] - origin) > MAX_EXCURSION + _ROUNDING
-                   for origin in (feedback.raw[0], self._activation_pose[0])):
+            if any(
+                abs(targets[0] - origin) > MAX_EXCURSION + _ROUNDING
+                for origin in (feedback.raw[0], self._activation_pose[0])
+            ):
                 raise GoalRejected("joint1 target exceeds the 0.01 rad excursion envelope")
             assert self._last_command is not None
-            travel = max(abs(targets[0] - feedback.bounded[0]), abs(targets[0] - self._last_command))
+            travel = max(
+                abs(targets[0] - feedback.bounded[0]), abs(targets[0] - self._last_command)
+            )
             if travel / seconds > MAX_VELOCITY + _ROUNDING:
                 raise GoalRejected("goal exceeds the 0.01 rad/s commanded velocity limit")
             self._goal = _Goal(feedback, self._last_command, targets, seconds)
@@ -470,15 +480,21 @@ class CommissioningCore:
                         raise MotionError("goal completion deadline expired: " + tracking)
                     if abs(feedback.raw[0] - goal.start.raw[0]) > MAX_EXCURSION + _ROUNDING:
                         raise MotionError("measured joint1 left goal excursion envelope")
-                    if any(abs(a - b) > MEASURED_TOLERANCE for a, b in zip(feedback.raw[1:], goal.start.raw[1:])):
+                    if any(
+                        abs(a - b) > MEASURED_TOLERANCE
+                        for a, b in zip(feedback.raw[1:], goal.start.raw[1:])
+                    ):
                         raise MotionError("inactive axis moved during goal")
                     start = goal.command_start
                     position = start + (goal.target[0] - start) * (elapsed / goal.duration)
-                    if (abs(position - goal.target[0]) <= GOAL_TOLERANCE
-                            and all(abs(a - b) <= GOAL_TOLERANCE for a, b in zip(feedback.raw, goal.target))):
+                    if abs(position - goal.target[0]) <= GOAL_TOLERANCE and all(
+                        abs(a - b) <= GOAL_TOLERANCE for a, b in zip(feedback.raw, goal.target)
+                    ):
                         succeeded = True
                     elif elapsed == goal.duration:
-                        raise MotionError("goal deadline reached without measured convergence: " + tracking)
+                        raise MotionError(
+                            "goal deadline reached without measured convergence: " + tracking
+                        )
                 self._send(position, feedback)
                 if succeeded:
                     self._hold = position
@@ -533,7 +549,9 @@ class CommissioningCore:
     def recover(self, now: float | None = None) -> ErrorReport:
         with self._lock:
             if self._state != State.STOPPED or self._axis_attempted:
-                raise RuntimeError("recovery requires stopped, inactive state with disable acknowledged")
+                raise RuntimeError(
+                    "recovery requires stopped, inactive state with disable acknowledged"
+                )
             try:
                 self._read(now)
             except BaseException as exc:

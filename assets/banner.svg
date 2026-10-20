@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600" viewBox="0 0 1600 600" role="img" aria-labelledby="title description">
+  <title id="title">Inspect Robots + RoboCurve + Seeed Studio — B601-RS community integration</title>
+  <desc id="description">A cream and teal banner connecting Inspect Robots evaluations to a schematic green-jointed B601 robot arm. Independent community integration by kyeshmz, not an official endorsement.</desc>
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fffaed"/>
+      <stop offset="1" stop-color="#f1f4e9"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fffdf7"/>
+      <stop offset="1" stop-color="#dce5df"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#d2e2db" stroke-width="1"/>
+    </pattern>
+    <clipPath id="rounded"><rect width="1600" height="600" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#rounded)">
+    <rect width="1600" height="600" fill="url(#field)"/>
+    <rect x="1010" y="134" width="590" height="406" fill="url(#grid)" opacity=".65"/>
+    <circle cx="1400" cy="340" r="250" fill="none" stroke="#e1e9d5" stroke-width="45"/>
+    <path d="M64 126H1536" stroke="#c6d7cd"/>
+
+    <!-- Inspect Robots line art adapted from robocurve/inspect-robots; see assets/NOTICE.md. -->
+    <g transform="translate(58 22) scale(.21)">
+      <rect width="420" height="420" rx="84" fill="#fffaed"/>
+      <g stroke="#005f73" stroke-width="11" stroke-linecap="round" fill="none">
+        <path d="M96 302H330M138 302C132 240 150 196 208 182M186 226C208 238 222 248 236 256"/>
+        <ellipse cx="262" cy="248" rx="26" ry="16" transform="rotate(-18 262 248)"/>
+        <circle cx="232" cy="170" r="40" fill="#fffaed"/>
+      </g>
+      <circle cx="243" cy="186" r="6" fill="#005f73"/>
+      <circle cx="276" cy="288" r="7" fill="#005f73"/>
+    </g>
+    <g font-family="DejaVu Sans, Arial, sans-serif" fill="#005f73">
+      <text x="154" y="72" font-size="32" font-weight="700">Inspect Robots</text>
+      <text x="154" y="96" font-size="13" letter-spacing="2.2">EVALUATION FRAMEWORK</text>
+      <path d="M626 80C626 36 674 36 674 62S650 88 650 62" fill="none" stroke="#005f73" stroke-width="7" stroke-linecap="round"/>
+      <text x="698" y="76" font-size="34" font-weight="700">robocurve</text>
+      <g transform="translate(1144 44)" fill="#8dc21f">
+        <path d="M24 40V16" fill="none" stroke="#8dc21f" stroke-width="4"/>
+        <ellipse cx="13" cy="15" rx="8" ry="15" transform="rotate(-42 13 15)"/>
+        <ellipse cx="34" cy="11" rx="8" ry="15" transform="rotate(38 34 11)"/>
+      </g>
+      <text x="1202" y="74" font-size="32" font-weight="700">Seeed Studio</text>
+      <text x="1203" y="96" font-size="13" letter-spacing="2.2">ROBOT HARDWARE</text>
+    </g>
+
+    <g font-family="DejaVu Sans, Arial, sans-serif">
+      <rect x="72" y="173" width="239" height="31" rx="15.5" fill="#e4eed7"/>
+      <circle cx="90" cy="188.5" r="4" fill="#6d9630"/>
+      <text x="104" y="194" fill="#426328" font-size="13" font-weight="700" letter-spacing="1.4">COMMUNITY INTEGRATION</text>
+      <text x="66" y="326" font-size="112" font-weight="700" letter-spacing="-5" fill="#005f73">B601-RS</text>
+      <text x="73" y="382" font-size="34" fill="#193f43">Physical AI, with evidence.</text>
+      <text x="74" y="421" font-size="18" fill="#5c7473">Bounded actions. Measured feedback. Reproducible evaluations.</text>
+      <g font-size="14" fill="#005f73">
+        <rect x="73" y="455" width="139" height="34" rx="17" fill="#e2ebe6"/>
+        <text x="95" y="477">ROS 2 actions</text>
+        <rect x="224" y="455" width="138" height="34" rx="17" fill="#e2ebe6"/>
+        <text x="244" y="477">Motorbridge</text>
+        <rect x="374" y="455" width="188" height="34" rx="17" fill="#e2ebe6"/>
+        <text x="395" y="477">Measured-state tests</text>
+      </g>
+    </g>
+
+    <g transform="translate(1000 138)">
+      <ellipse cx="256" cy="352" rx="199" ry="22" fill="#d6e1d8"/>
+      <path d="M178 327L165 218L286 104L406 155L411 213" fill="none" stroke="#005f73" stroke-width="49" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M178 327L165 218L286 104L406 155L411 213" fill="none" stroke="url(#metal)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M133 328H225L241 354H117Z" fill="#005f73"/>
+      <rect x="140" y="309" width="76" height="24" rx="8" fill="#005f73"/>
+      <g fill="#8dc21f" stroke="#005f73" stroke-width="6">
+        <circle cx="178" cy="300" r="25"/>
+        <circle cx="165" cy="218" r="29"/>
+        <circle cx="286" cy="104" r="29"/>
+        <circle cx="406" cy="155" r="23"/>
+        <circle cx="411" cy="206" r="17"/>
+      </g>
+      <g fill="#005f73">
+        <circle cx="178" cy="300" r="7"/><circle cx="165" cy="218" r="8"/>
+        <circle cx="286" cy="104" r="8"/><circle cx="406" cy="155" r="6"/>
+      </g>
+      <path d="M411 222V238M392 239H430M392 239L386 261L396 270M430 239L436 261L426 270" fill="none" stroke="#005f73" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M411 278V298" stroke="#7b9b83" stroke-width="2" stroke-dasharray="4 5"/>
+      <rect x="395" y="303" width="32" height="32" rx="5" fill="#8dc21f" opacity=".75"/>
+      <path d="M81 223H35V133H122" fill="none" stroke="#82a69d" stroke-width="2" stroke-dasharray="6 7"/>
+      <circle cx="81" cy="223" r="4" fill="#005f73"/>
+      <text x="24" y="117" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#597b75" letter-spacing="1.5">OBSERVE / BOUND / SCORE</text>
+      <text x="293" y="379" font-family="DejaVu Sans Mono, monospace" font-size="12" fill="#597b75">schematic · not a CAD model</text>
+    </g>
+
+    <path d="M64 538H1536" stroke="#c6d7cd"/>
+    <text x="74" y="568" font-family="DejaVu Sans Mono, monospace" font-size="15" fill="#005f73">inspect-robots-b601</text>
+    <text x="1532" y="568" text-anchor="end" font-family="DejaVu Sans, Arial, sans-serif" font-size="13" fill="#617c76">by kyeshmz · Independent integration, not an official endorsement</text>
+  </g>
+</svg>

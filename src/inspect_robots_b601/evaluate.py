@@ -5,16 +5,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Sequence
+from typing import cast
 
 from inspect_robots import eval
 from inspect_robots.approver import ChainApprover, ClampApprover, DeltaLimitApprover
+from inspect_robots.policy import Policy
 from inspect_robots.registry import resolve
 
 from .benchmarks import JointGoalPolicy, hold, joint1_nudge
 from .embodiment import B601Embodiment
 
 
-def main(argv=None):
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run a scored mock evaluation without allowing hardware embodiment selection."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=("ros-mock", "agent-sim"))
     parser.add_argument("--task", choices=("hold", "joint1-nudge"), default="hold")
@@ -34,16 +38,28 @@ def main(argv=None):
     robot = B601Embodiment(simulated=True, max_step=0.002, position_tolerance=0.0006)
     policy = None
     try:
-        policy = JointGoalPolicy() if args.stage == "ros-mock" else resolve(
-            "policy", "agent", model=args.model, wire=args.wire, effort="low",
-            max_speed_frac=0.0004, max_llm_calls=5,
+        policy = (
+            JointGoalPolicy()
+            if args.stage == "ros-mock"
+            else cast(
+                Policy,
+                resolve(
+                    "policy",
+                    "agent",
+                    model=args.model,
+                    wire=args.wire,
+                    effort="low",
+                    max_speed_frac=0.0004,
+                    max_llm_calls=5,
+                ),
+            )
         )
         task = (hold if args.task == "hold" else joint1_nudge)(
             max_steps=3 if args.stage == "ros-mock" else 10,
         )
         space = robot.info.action_space
         approver = ChainApprover(ClampApprover(space), DeltaLimitApprover(space, max_delta=0.002))
-        log, = eval(task, policy, robot, approver=approver, log_dir=args.log_dir)
+        (log,) = eval(task, policy, robot, approver=approver, log_dir=args.log_dir)
         passed = log.status == "success" and log.results.metrics.get("b601_measured_goal") == 1.0
         print(json.dumps({"status": log.status, "metrics": log.results.metrics, "passed": passed}))
         return 0 if passed else 1

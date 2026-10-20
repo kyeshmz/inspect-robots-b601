@@ -5,22 +5,28 @@ import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import socket
 import struct
 import sys
 import tempfile
-from types import SimpleNamespace
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from b601_hardware.core import CommissioningCore, GoalState, PositionSample, State
 from b601_hardware import transport as transport_module
+from b601_hardware.core import CommissioningCore, GoalState, PositionSample, State
 from b601_hardware.transport import (
-    CleanupError, Joint1Transport, OpenError, SessionFailed, StrictParameterReader,
-    TransportError, UnconfirmedOperation, decode_parameter_reply, decode_status_reply,
+    CleanupError,
+    Joint1Transport,
+    OpenError,
+    SessionFailed,
+    StrictParameterReader,
+    TransportError,
+    UnconfirmedOperation,
+    decode_parameter_reply,
+    decode_status_reply,
 )
-
 
 FRAME = struct.Struct("=IB3x8s")
 EFF = 0x80000000
@@ -36,8 +42,9 @@ def reply(parameter=0x7019, value=0.125, motor=1, host=0xFD, error=0):
 
 
 def status(mode=2, faults=0, motor=1, host=0xFD):
-    return FRAME.pack(EFF | (2 << 24) | (mode << 22) | (faults << 16) | (motor << 8) | host,
-                      8, bytes(8))
+    return FRAME.pack(
+        EFF | (2 << 24) | (mode << 22) | (faults << 16) | (motor << 8) | host, 8, bytes(8)
+    )
 
 
 class Clock:
@@ -81,7 +88,12 @@ class Bus(Resource):
     def packet(self, frame, *, flags=0, timestamp=None):
         stamp = self.clock.wall_ns() if timestamp is None else timestamp
         seconds, nanos = divmod(stamp, 1_000_000_000)
-        return frame, [(socket.SOL_SOCKET, 64, struct.pack("=qq", seconds, nanos))], flags, ("can1",)
+        return (
+            frame,
+            [(socket.SOL_SOCKET, 64, struct.pack("=qq", seconds, nanos))],
+            flags,
+            ("can1",),
+        )
 
     def setsockopt(self, *args):
         self.events.append(("setsockopt", *args))
@@ -129,8 +141,11 @@ class Bus(Resource):
             self.queue.extend(self.response_hook(motor, parameter))
         else:
             value = self.positions[motor - 1] if parameter == 0x7019 else self.values[parameter]
-            self.queue.append(self.packet(reply(parameter, value, motor,
-                                                error=int(parameter in self.unsupported))))
+            self.queue.append(
+                self.packet(
+                    reply(parameter, value, motor, error=int(parameter in self.unsupported))
+                )
+            )
         return len(frame) - int(self.short_send)
 
     def recvmsg(self, size, ancsize, flags=0):
@@ -140,7 +155,7 @@ class Bus(Resource):
             return self.queue.pop(0)
         if not self.queue:
             self.clock.now += self.timeout
-            raise socket.timeout("injected timeout")
+            raise TimeoutError("injected timeout")
         self.clock.now += 0.001
         item = self.queue.pop(0)
         return item() if callable(item) else item
@@ -205,30 +220,48 @@ class DecoderTests(unittest.TestCase):
             for faults in (0, 1, 32, 63):
                 self.assertEqual(decode_status_reply(status(mode, faults)), (mode, faults))
         identifier, dlc, data = FRAME.unpack(status())
-        for frame in (status(motor=2), status(host=0xFE), reply(),
-                      FRAME.pack(identifier & ~EFF, dlc, data),
-                      FRAME.pack(identifier | 0x40000000, dlc, data),
-                      FRAME.pack(identifier | 0x20000000, dlc, data),
-                      FRAME.pack(identifier, 7, data), status()[:-1],
-                      FRAME.pack(identifier, 8, b"\x00\xc4\x56" + bytes(5))):
+        for frame in (
+            status(motor=2),
+            status(host=0xFE),
+            reply(),
+            FRAME.pack(identifier & ~EFF, dlc, data),
+            FRAME.pack(identifier | 0x40000000, dlc, data),
+            FRAME.pack(identifier | 0x20000000, dlc, data),
+            FRAME.pack(identifier, 7, data),
+            status()[:-1],
+            FRAME.pack(identifier, 8, b"\x00\xc4\x56" + bytes(5)),
+        ):
             self.assertIsNone(decode_status_reply(frame))
         for flags in (socket.MSG_DONTROUTE, socket.MSG_TRUNC, socket.MSG_CTRUNC):
             self.assertIsNone(decode_status_reply(status(), flags=flags))
 
     def test_dtype_values(self):
-        for parameter, dtype, value in [(0x7005, "i8", -1), (0x700B, "f32", 0.125),
-                                         (0x7019, "f32", -0.125), (0x7028, "u32", 5000)]:
+        for parameter, dtype, value in [
+            (0x7005, "i8", -1),
+            (0x700B, "f32", 0.125),
+            (0x7019, "f32", -0.125),
+            (0x7028, "u32", 5000),
+        ]:
             with self.subTest(dtype=dtype):
-                self.assertEqual(decode_parameter_reply(reply(parameter, value), 1, parameter, dtype), value)
+                self.assertEqual(
+                    decode_parameter_reply(reply(parameter, value), 1, parameter, dtype), value
+                )
 
     def test_mismatches_and_local_frames_are_rejected(self):
         original = reply()
         identifier, dlc, data = FRAME.unpack(original)
-        frames = [original[:-1], original + b"x", FRAME.pack(identifier & ~EFF, dlc, data),
-                  FRAME.pack(identifier | 0x40000000, dlc, data),
-                  FRAME.pack(identifier | 0x20000000, dlc, data),
-                  FRAME.pack(identifier, 7, data), FRAME.pack(identifier ^ (3 << 24), dlc, data),
-                  reply(host=0xFE), reply(motor=2), reply(0x700B)]
+        frames = [
+            original[:-1],
+            original + b"x",
+            FRAME.pack(identifier & ~EFF, dlc, data),
+            FRAME.pack(identifier | 0x40000000, dlc, data),
+            FRAME.pack(identifier | 0x20000000, dlc, data),
+            FRAME.pack(identifier, 7, data),
+            FRAME.pack(identifier ^ (3 << 24), dlc, data),
+            reply(host=0xFE),
+            reply(motor=2),
+            reply(0x700B),
+        ]
         for frame in frames:
             with self.subTest(frame=frame):
                 self.assertIsNone(decode_parameter_reply(frame, 1, 0x7019, "f32"))
@@ -236,14 +269,25 @@ class DecoderTests(unittest.TestCase):
             self.assertIsNone(decode_parameter_reply(original, 1, 0x7019, "f32", flags=flags))
 
     def test_motor_errors_and_nonfinite_values_raise(self):
-        for frame in (reply(error=1), reply(error=255), reply(value=math.nan),
-                      reply(value=math.inf), reply(value=-math.inf)):
+        for frame in (
+            reply(error=1),
+            reply(error=255),
+            reply(value=math.nan),
+            reply(value=math.inf),
+            reply(value=-math.inf),
+        ):
             with self.assertRaises(TransportError):
                 decode_parameter_reply(frame, 1, 0x7019, "f32")
 
     def test_parameter_dtype_and_motor_are_validated(self):
-        for args in ((1, 0x7005, "u32"), (1, 0x7005, "u8"), (1, 0x1234, "f32"),
-                     (0, 0x7019, "f32"), (7, 0x7019, "f32"), (True, 0x7019, "f32")):
+        for args in (
+            (1, 0x7005, "u32"),
+            (1, 0x7005, "u8"),
+            (1, 0x1234, "f32"),
+            (0, 0x7019, "f32"),
+            (7, 0x7019, "f32"),
+            (True, 0x7019, "f32"),
+        ):
             with self.assertRaises(ValueError):
                 decode_parameter_reply(reply(), *args)
 
@@ -268,17 +312,22 @@ class ReaderTests(unittest.TestCase):
 
     def test_running_motor_reset_is_detected_while_waiting_for_a_position(self):
         self.reader.set_enabled(True)
-        self.bus.response_hook = lambda *args: [self.bus.packet(status(mode=0)), self.bus.packet(reply())]
+        self.bus.response_hook = lambda *args: [
+            self.bus.packet(status(mode=0)),
+            self.bus.packet(reply()),
+        ]
         with self.assertRaisesRegex(TransportError, "mode=0"):
             self.reader.read(1, 0x7019, "f32")
 
     def test_old_or_local_status_cannot_create_a_new_running_fault(self):
         old = self.clock.wall_ns() - 1
         self.reader.set_enabled(True)
-        self.bus.queue.extend([
-            self.bus.packet(status(faults=2), timestamp=old),
-            self.bus.packet(status(faults=2), flags=socket.MSG_DONTROUTE),
-        ])
+        self.bus.queue.extend(
+            [
+                self.bus.packet(status(faults=2), timestamp=old),
+                self.bus.packet(status(faults=2), flags=socket.MSG_DONTROUTE),
+            ]
+        )
         self.assertEqual(self.reader.read(1, 0x7019, "f32")[0], 0.125)
 
     def test_drain_preexisting_data_and_stamp_request_start(self):
@@ -293,10 +342,13 @@ class ReaderTests(unittest.TestCase):
 
     def test_unrelated_local_and_pre_request_timestamps_do_not_satisfy_read(self):
         def responses(*args):
-            return [self.bus.packet(reply(motor=2)),
-                    self.bus.packet(reply(value=99), flags=socket.MSG_DONTROUTE),
-                    self.bus.packet(reply(value=98), timestamp=self.clock.wall_ns() - 1),
-                    self.bus.packet(reply(value=0.25))]
+            return [
+                self.bus.packet(reply(motor=2)),
+                self.bus.packet(reply(value=99), flags=socket.MSG_DONTROUTE),
+                self.bus.packet(reply(value=98), timestamp=self.clock.wall_ns() - 1),
+                self.bus.packet(reply(value=0.25)),
+            ]
+
         self.bus.response_hook = responses
         self.assertEqual(self.reader.read(1, 0x7019, "f32")[0], 0.25)
 
@@ -314,6 +366,7 @@ class ReaderTests(unittest.TestCase):
         def late():
             self.clock.now += 0.05
             return self.bus.packet(reply())
+
         self.bus.response_hook = lambda *args: [late]
         with self.assertRaises(TimeoutError):
             self.reader.read(1, 0x7019, "f32")
@@ -335,9 +388,11 @@ class ReaderTests(unittest.TestCase):
             self.reader.read(1, 0x7019, "f32")
 
     def test_missing_future_or_corrupt_receive_timestamp_fails_session(self):
-        packets = [(reply(), [], 0, ()),
-                   self.bus.packet(reply(), timestamp=self.clock.wall_ns() + 1_000_000_000),
-                   (reply(), [(socket.SOL_SOCKET, 64, b"bad")], 0, ())]
+        packets = [
+            (reply(), [], 0, ()),
+            self.bus.packet(reply(), timestamp=self.clock.wall_ns() + 1_000_000_000),
+            (reply(), [(socket.SOL_SOCKET, 64, b"bad")], 0, ()),
+        ]
         for packet in packets:
             reader = StrictParameterReader(self.bus, clock=self.clock, wall_ns=self.clock.wall_ns)
             self.bus.response_hook = lambda *args, packet=packet: [packet]
@@ -350,6 +405,7 @@ class ReaderTests(unittest.TestCase):
         def stepped():
             self.clock.wall_shift = 1_000_000_000
             return self.bus.packet(reply())
+
         self.bus.response_hook = lambda *args: [stepped]
         with self.assertRaisesRegex(TransportError, "clocks diverged"):
             self.reader.read(1, 0x7019, "f32")
@@ -369,11 +425,15 @@ class ReaderTests(unittest.TestCase):
     def test_mode_ack_ignores_wrong_identity_loopback_version_and_stale_status(self):
         def responses(kind):
             identifier, _, _ = FRAME.unpack(status())
-            return [self.bus.packet(status(host=0xFE)), self.bus.packet(status(motor=2)),
-                    self.bus.packet(reply()), self.bus.packet(status(), flags=socket.MSG_DONTROUTE),
-                    self.bus.packet(FRAME.pack(identifier, 8, b"\x00\xc4\x56" + bytes(5))),
-                    self.bus.packet(status(0, 63), timestamp=self.clock.wall_ns() - 1),
-                    self.bus.packet(status(2))]
+            return [
+                self.bus.packet(status(host=0xFE)),
+                self.bus.packet(status(motor=2)),
+                self.bus.packet(reply()),
+                self.bus.packet(status(), flags=socket.MSG_DONTROUTE),
+                self.bus.packet(FRAME.pack(identifier, 8, b"\x00\xc4\x56" + bytes(5))),
+                self.bus.packet(status(0, 63), timestamp=self.clock.wall_ns() - 1),
+                self.bus.packet(status(2)),
+            ]
 
         self.bus.control_hook = responses
         self.reader.set_enabled(True)
@@ -401,7 +461,9 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual([(FRAME.unpack(f)[0] >> 24) & 31 for f in self.bus.sent], [3, 4])
 
     def test_stale_only_mode_ack_times_out_without_observing_a_mode(self):
-        self.bus.control_hook = lambda kind: [self.bus.packet(status(2), timestamp=self.clock.wall_ns() - 1)]
+        self.bus.control_hook = lambda kind: [
+            self.bus.packet(status(2), timestamp=self.clock.wall_ns() - 1)
+        ]
         with self.assertRaises(TimeoutError):
             self.reader.set_enabled(True)
         self.assertIsNone(self.reader.last_outcome.mode_observed)
@@ -411,20 +473,28 @@ class ReaderTests(unittest.TestCase):
     def test_fresh_wrong_mode_or_enable_fault_fails_immediately(self):
         for mode, faults in ((0, 0), (1, 0), (3, 0), (2, 1), (2, 32), (2, 63)):
             with self.subTest(mode=mode, faults=faults):
-                reader = StrictParameterReader(self.bus, clock=self.clock, wall_ns=self.clock.wall_ns)
-                self.bus.control_hook = lambda kind: [self.bus.packet(status(mode, faults)),
-                                                       self.bus.packet(status(2))]
+                reader = StrictParameterReader(
+                    self.bus, clock=self.clock, wall_ns=self.clock.wall_ns
+                )
+                self.bus.control_hook = lambda kind: [
+                    self.bus.packet(status(mode, faults)),
+                    self.bus.packet(status(2)),
+                ]
                 with self.assertRaises(UnconfirmedOperation) as caught:
                     reader.set_enabled(True)
-                self.assertEqual((caught.exception.outcome.mode_observed, caught.exception.outcome.fault_bits),
-                                 (mode, faults))
+                self.assertEqual(
+                    (caught.exception.outcome.mode_observed, caught.exception.outcome.fault_bits),
+                    (mode, faults),
+                )
                 self.assertFalse(reader.last_outcome.mode_acknowledged)
                 with self.assertRaises(SessionFailed):
                     reader.set_enabled(True)
 
     def test_status_needs_intact_fresh_kernel_timestamp(self):
-        for packet in ((status(), [], 0, ()),
-                       self.bus.packet(status(), timestamp=self.clock.wall_ns() + 1_000_000_000)):
+        for packet in (
+            (status(), [], 0, ()),
+            self.bus.packet(status(), timestamp=self.clock.wall_ns() + 1_000_000_000),
+        ):
             reader = StrictParameterReader(self.bus, clock=self.clock, wall_ns=self.clock.wall_ns)
             self.bus.control_hook = lambda kind: [packet]
             with self.assertRaises(TransportError):
@@ -432,8 +502,14 @@ class ReaderTests(unittest.TestCase):
             self.assertFalse(reader.last_outcome.mode_acknowledged)
 
     def test_guard_writer_refuses_mode_zero_faultclear_and_arbitrary_watchdog(self):
-        for parameter, value in ((0x7005, 0), (0x7029, 1), (0x700B, 0.31), (0x700B, math.nan),
-                                 (0x7028, 0), (0x7028, 5000.0)):
+        for parameter, value in (
+            (0x7005, 0),
+            (0x7029, 1),
+            (0x700B, 0.31),
+            (0x700B, math.nan),
+            (0x7028, 0),
+            (0x7028, 5000.0),
+        ):
             with self.assertRaises(ValueError):
                 self.reader.write_guard(parameter, value)
         self.assertEqual(self.bus.sent, [])
@@ -456,9 +532,13 @@ class VendorVerificationTests(unittest.TestCase):
         self.spec = SimpleNamespace(origin=str(self.package / "__init__.py"))
         self.addCleanup(patch.stopall)
         patch.dict(os.environ, {}, clear=True).start()
-        patch.object(transport_module.importlib.metadata, "distribution", return_value=self.distribution).start()
+        patch.object(
+            transport_module.importlib.metadata, "distribution", return_value=self.distribution
+        ).start()
         patch.object(transport_module.importlib.util, "find_spec", return_value=self.spec).start()
-        patch.object(transport_module, "_NATIVE_SHA256", hashlib.sha256(self.native.read_bytes()).hexdigest()).start()
+        patch.object(
+            transport_module, "_NATIVE_SHA256", hashlib.sha256(self.native.read_bytes()).hexdigest()
+        ).start()
         patch.object(transport_module, "_WRAPPER_SHA256", self.wrappers).start()
 
     def test_verified_package_and_exact_override_are_accepted_without_loading_sdk(self):
@@ -490,7 +570,9 @@ class VendorVerificationTests(unittest.TestCase):
     def test_previously_loaded_different_abi_cannot_construct_controller(self):
         constructed = []
         fake_module = SimpleNamespace(Controller=lambda **kw: constructed.append(kw))
-        fake_abi = SimpleNamespace(get_abi=lambda: SimpleNamespace(lib=SimpleNamespace(_name="/other/native.so")))
+        fake_abi = SimpleNamespace(
+            get_abi=lambda: SimpleNamespace(lib=SimpleNamespace(_name="/other/native.so"))
+        )
         with patch.dict(sys.modules, {"motorbridge": fake_module, "motorbridge.abi": fake_abi}):
             with self.assertRaisesRegex(TransportError, "loaded MotorBridge ABI"):
                 transport_module._controller("can1")
@@ -504,9 +586,17 @@ class TransportTests(unittest.TestCase):
         self.motor = Motor(self.bus, self.events)
         self.controller = Controller(self.motor, self.events)
         self.lock = Resource(self.events, "lock")
-        self.metadata = {"channel": "can1", "type": 280, "driver": "peak_usb",
-                         "usb_vendor": "0c72", "usb_product": "000c", "flags": ["UP"],
-                         "bitrate": 1_000_000, "ctrlmode": [], "can_state": "ERROR-ACTIVE"}
+        self.metadata = {
+            "channel": "can1",
+            "type": 280,
+            "driver": "peak_usb",
+            "usb_vendor": "0c72",
+            "usb_product": "000c",
+            "flags": ["UP"],
+            "bitrate": 1_000_000,
+            "ctrlmode": [],
+            "can_state": "ERROR-ACTIVE",
+        }
         self.transport = self.make_transport()
 
     def make_transport(self, profile=None):
@@ -514,13 +604,18 @@ class TransportTests(unittest.TestCase):
             def create(*args):
                 self.events.append((name, *args))
                 return result
+
             return create
-        return Joint1Transport(PROFILE if profile is None else profile,
+
+        return Joint1Transport(
+            PROFILE if profile is None else profile,
             socket_factory=factory("socket", self.bus),
             controller_factory=factory("controller", self.controller),
             lock_factory=factory("lock", self.lock),
             metadata_reader=factory("metadata", self.metadata),
-            clock=self.clock, wall_ns=self.clock.wall_ns)
+            clock=self.clock,
+            wall_ns=self.clock.wall_ns,
+        )
 
     def tearDown(self):
         self.motor.close_error = self.controller.close_error = self.bus.close_error = None
@@ -533,8 +628,13 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.events, [])
 
     def test_invalid_profile_never_opens_hardware(self):
-        for key, value in (("channel", "can0"), ("driver", "mttcan"), ("host_id", 0),
-                           ("torque_cap_nm", 0.31), ("watchdog_ticks", 0)):
+        for key, value in (
+            ("channel", "can0"),
+            ("driver", "mttcan"),
+            ("host_id", 0),
+            ("torque_cap_nm", 0.31),
+            ("watchdog_ticks", 0),
+        ):
             profile = copy.deepcopy(PROFILE)
             profile[key] = value
             with self.assertRaises(ValueError):
@@ -549,8 +649,11 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.events[-1], ("add", 1, 0xFD, "rs-06"))
         self.assertEqual(str(self.events[0][1]), "/run/lock/astra-b601-can1.lock")
         self.assertEqual(self.bus.sent, [])
-        filters = next(e[3] for e in self.events if e[0] == "setsockopt" and e[1:3] ==
-                       (socket.SOL_CAN_RAW, socket.CAN_RAW_FILTER))
+        filters = next(
+            e[3]
+            for e in self.events
+            if e[0] == "setsockopt" and e[1:3] == (socket.SOL_CAN_RAW, socket.CAN_RAW_FILTER)
+        )
         filter_pairs = list(struct.iter_unpack("=II", filters))
         self.assertEqual({(identifier >> 24) & 31 for identifier, _ in filter_pairs}, {2, 17})
         # Linux routes any mask containing CAN_ERR_FLAG away from normal data frames.
@@ -560,7 +663,9 @@ class TransportTests(unittest.TestCase):
 
     def test_unreviewed_default_vendor_is_rejected_before_socket_open(self):
         self.transport._controller_factory = transport_module._controller
-        with patch.object(transport_module, "_verify_motorbridge", side_effect=TransportError("unreviewed ABI")):
+        with patch.object(
+            transport_module, "_verify_motorbridge", side_effect=TransportError("unreviewed ABI")
+        ):
             with self.assertRaisesRegex(TransportError, "unreviewed ABI"):
                 self.transport.open()
         self.assertEqual([e[0] for e in self.events], ["lock", "metadata", "lock.close"])
@@ -577,10 +682,18 @@ class TransportTests(unittest.TestCase):
             self.transport.open()
 
     def test_metadata_mismatch_fails_before_socket_and_releases_lock(self):
-        for key, value in (("channel", "can0"), ("driver", "mttcan"), ("usb_vendor", "ffff"),
-                           ("usb_product", "ffff"), ("bitrate", 500_000), ("flags", []),
-                           ("can_state", "BUS-OFF"), ("ctrlmode", ["LISTEN-ONLY"]),
-                           ("ctrlmode", ["LOOPBACK"]), ("type", 1)):
+        for key, value in (
+            ("channel", "can0"),
+            ("driver", "mttcan"),
+            ("usb_vendor", "ffff"),
+            ("usb_product", "ffff"),
+            ("bitrate", 500_000),
+            ("flags", []),
+            ("can_state", "BUS-OFF"),
+            ("ctrlmode", ["LISTEN-ONLY"]),
+            ("ctrlmode", ["LOOPBACK"]),
+            ("type", 1),
+        ):
             with self.subTest(key=key, value=value):
                 old = self.metadata[key]
                 self.metadata[key] = value
@@ -607,8 +720,20 @@ class TransportTests(unittest.TestCase):
         self.events.clear()
         self.transport.prepare_axis("joint1", 0.125)
         calls = [e for e in self.events if e[0] != "blocking"]
-        self.assertEqual([e[0] for e in calls],
-                         ["disable", "query", "query", "write_f32", "write_u32", "query", "query", "query", "mit"])
+        self.assertEqual(
+            [e[0] for e in calls],
+            [
+                "disable",
+                "query",
+                "query",
+                "write_f32",
+                "write_u32",
+                "query",
+                "query",
+                "query",
+                "mit",
+            ],
+        )
         self.assertEqual(calls[0], ("disable", 1))
         self.assertEqual(calls[1], ("query", 1, 0x7005))
         self.assertEqual(calls[4], ("write_u32", 0x7028, 5000))
@@ -631,11 +756,16 @@ class TransportTests(unittest.TestCase):
             self.assertEqual(transport.guard_readback["commanded_kd"], 3.0)
             self.assertLessEqual(transport.guard_readback["torque_cap_nm"], 0.3)
             self.assertEqual(transport.guard_readback["watchdog_ticks"], 5000)
-            self.assertEqual([event for event in self.events if event[0] == "mit"], [
-                ("mit", 0.125, 0.0, 100.0, 3.0, 0.0),
-                ("mit", 0.126, 0.0, 100.0, 3.0, 0.0),
-            ])
-            self.assertEqual([event for event in self.events if event[0] == "add"], [("add", 1, 0xFD, "rs-06")])
+            self.assertEqual(
+                [event for event in self.events if event[0] == "mit"],
+                [
+                    ("mit", 0.125, 0.0, 100.0, 3.0, 0.0),
+                    ("mit", 0.126, 0.0, 100.0, 3.0, 0.0),
+                ],
+            )
+            self.assertEqual(
+                [event for event in self.events if event[0] == "add"], [("add", 1, 0xFD, "rs-06")]
+            )
             transport.disable_axis("joint1")
         finally:
             transport.close()
@@ -654,12 +784,16 @@ class TransportTests(unittest.TestCase):
         self.bus.mode = 2  # Software inactivity does not establish physical RESET.
 
         def check_before_ack():
-            self.assertFalse(any(e[0] in ("query", "write_f32", "write_u32", "mit") for e in self.events))
+            self.assertFalse(
+                any(e[0] in ("query", "write_f32", "write_u32", "mit") for e in self.events)
+            )
             return self.bus.packet(status(0))
 
         self.bus.control_hook = lambda kind: [check_before_ack]
         self.transport.prepare_axis("joint1", 0.125)
-        self.assertEqual([e for e in self.events if e[0] in ("enable", "disable")], [("disable", 1)])
+        self.assertEqual(
+            [e for e in self.events if e[0] in ("enable", "disable")], [("disable", 1)]
+        )
 
     def test_failed_initial_reset_ack_cannot_reach_parameter_or_hold_writes(self):
         for response in (status(2), status(1), status(3)):
@@ -669,7 +803,9 @@ class TransportTests(unittest.TestCase):
             self.bus.control_hook = lambda kind: [self.bus.packet(response)]
             with self.assertRaises(UnconfirmedOperation):
                 transport.prepare_axis("joint1", 0.125)
-            self.assertFalse(any(e[0] in ("query", "write_f32", "write_u32", "mit") for e in self.events))
+            self.assertFalse(
+                any(e[0] in ("query", "write_f32", "write_u32", "mit") for e in self.events)
+            )
             transport.close()
 
     def test_cap_never_increases_existing_lower_cap(self):
@@ -723,15 +859,21 @@ class TransportTests(unittest.TestCase):
 
     def test_invalid_axes_and_explicit_targets_never_write(self):
         self.transport.open()
-        for method, args in (("prepare_axis", (0.125,)), ("send_axis", (0.125,)),
-                             ("enable_axis", ()), ("disable_axis", ())):
+        for method, args in (
+            ("prepare_axis", (0.125,)),
+            ("send_axis", (0.125,)),
+            ("enable_axis", ()),
+            ("disable_axis", ()),
+        ):
             for axis in ("joint2", "joint6", "gripper", "joint7"):
                 with self.assertRaises(ValueError):
                     getattr(self.transport, method)(axis, *args)
         for value in (math.nan, math.inf, True, PROFILE["joints"][0]["upper"] + 1e-8):
             with self.assertRaises(ValueError):
                 self.transport.send_axis("joint1", value)
-        self.assertFalse(any(e[0] in ("mit", "disable", "write_f32", "write_u32") for e in self.events))
+        self.assertFalse(
+            any(e[0] in ("mit", "disable", "write_f32", "write_u32") for e in self.events)
+        )
 
     def test_send_uses_reviewed_gains_and_preserves_original_error(self):
         self.transport.open()
@@ -756,7 +898,9 @@ class TransportTests(unittest.TestCase):
         self.assertTrue(outcome.mode_acknowledged)
         self.assertEqual((outcome.mode_observed, outcome.fault_bits), (2, 0))
         self.assertFalse(outcome.physical_state_confirmed)
-        self.assertEqual(FRAME.unpack(self.bus.sent[-1]), (EFF | (3 << 24) | (0xFD << 8) | 1, 8, bytes(8)))
+        self.assertEqual(
+            FRAME.unpack(self.bus.sent[-1]), (EFF | (3 << 24) | (0xFD << 8) | 1, 8, bytes(8))
+        )
         before = len(self.bus.sent)
         with self.assertRaisesRegex(TransportError, "already enabled"):
             self.transport.enable_axis("joint1")
@@ -766,7 +910,9 @@ class TransportTests(unittest.TestCase):
         self.assertTrue(outcome.mode_acknowledged)
         self.assertEqual(outcome.mode_observed, 0)
         self.assertFalse(outcome.physical_state_confirmed)
-        self.assertEqual(FRAME.unpack(self.bus.sent[-1]), (EFF | (4 << 24) | (0xFD << 8) | 1, 8, bytes(8)))
+        self.assertEqual(
+            FRAME.unpack(self.bus.sent[-1]), (EFF | (4 << 24) | (0xFD << 8) | 1, 8, bytes(8))
+        )
         with self.assertRaisesRegex(TransportError, "preparation required"):
             self.transport.enable_axis("joint1")
 
@@ -884,8 +1030,9 @@ class TransportTests(unittest.TestCase):
     def test_core_integration_can_activate_with_mode_ack_and_close_without_torque_claim(self):
         self.transport.open()
         bounds = [(joint["lower"], joint["upper"]) for joint in PROFILE["joints"]]
-        core = CommissioningCore(self.transport, bounds, max_feedback_age=0.15,
-                                 persisted_stopped=False, clock=self.clock)
+        core = CommissioningCore(
+            self.transport, bounds, max_feedback_age=0.15, persisted_stopped=False, clock=self.clock
+        )
         core.activate(self.clock())
         self.assertEqual(core.state, State.ACTIVE)
         report = core.close()
@@ -896,8 +1043,9 @@ class TransportTests(unittest.TestCase):
         self.transport.open()
         self.motor.follow_target = True
         bounds = [(joint["lower"], joint["upper"]) for joint in PROFILE["joints"]]
-        core = CommissioningCore(self.transport, bounds, max_feedback_age=0.15,
-                                 persisted_stopped=False, clock=self.clock)
+        core = CommissioningCore(
+            self.transport, bounds, max_feedback_age=0.15, persisted_stopped=False, clock=self.clock
+        )
         core.activate(self.clock())
         target = list(core.bounded_positions)
         target[0] += 0.005
@@ -908,15 +1056,18 @@ class TransportTests(unittest.TestCase):
             if core.goal_state == GoalState.SUCCEEDED:
                 break
         self.assertEqual(core.goal_state, GoalState.SUCCEEDED)
-        self.assertEqual([e for e in self.events if e[0] in ("enable", "disable")],
-                         [("disable", 1), ("enable", 1)])
+        self.assertEqual(
+            [e for e in self.events if e[0] in ("enable", "disable")],
+            [("disable", 1), ("enable", 1)],
+        )
         self.assertFalse(core.close().torque_off_confirmed)
 
     def test_core_retains_enable_fault_separately_from_failed_cleanup_ack(self):
         self.transport.open()
         bounds = [(joint["lower"], joint["upper"]) for joint in PROFILE["joints"]]
-        core = CommissioningCore(self.transport, bounds, max_feedback_age=0.15,
-                                 persisted_stopped=False, clock=self.clock)
+        core = CommissioningCore(
+            self.transport, bounds, max_feedback_age=0.15, persisted_stopped=False, clock=self.clock
+        )
         calls = []
 
         def responses(kind):

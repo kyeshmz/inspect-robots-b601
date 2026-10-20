@@ -32,10 +32,17 @@ class InstalledPackageTests(unittest.TestCase):
         dist = distribution("inspect-robots-b601")
         files = {str(path) for path in dist.files}
         expected = {
-            "inspect_robots_b601/__init__.py", "inspect_robots_b601/embodiment.py",
-            "inspect_robots_b601/motorbridge.py", "inspect_robots_b601/_ros.py",
-            "b601_hardware/__init__.py", "b601_hardware/core.py",
-            "b601_hardware/direct.py", "b601_hardware/state.py", "b601_hardware/transport.py",
+            "inspect_robots_b601/py.typed",
+            "b601_hardware/py.typed",
+            "inspect_robots_b601/__init__.py",
+            "inspect_robots_b601/embodiment.py",
+            "inspect_robots_b601/motorbridge.py",
+            "inspect_robots_b601/_ros.py",
+            "b601_hardware/__init__.py",
+            "b601_hardware/core.py",
+            "b601_hardware/direct.py",
+            "b601_hardware/state.py",
+            "b601_hardware/transport.py",
         }
         self.assertTrue(expected <= files, expected - files)
         for path in files:
@@ -45,12 +52,23 @@ class InstalledPackageTests(unittest.TestCase):
             }:
                 continue
             top = path.split("/")[0]
-            self.assertTrue(top in ("inspect_robots_b601", "b601_hardware") or top.endswith(".dist-info"), path)
-        for name in ("inspect_robots_b601", "b601_hardware.core", "b601_hardware.direct",
-                     "b601_hardware.state", "b601_hardware.transport"):
+            self.assertTrue(
+                top in ("inspect_robots_b601", "b601_hardware") or top.endswith(".dist-info"), path
+            )
+        for name in (
+            "inspect_robots_b601",
+            "b601_hardware.core",
+            "b601_hardware.direct",
+            "b601_hardware.state",
+            "b601_hardware.transport",
+        ):
             module = importlib.import_module(name)
-            relative = name.replace(".", "/") + ("/__init__.py" if name == "inspect_robots_b601" else ".py")
-            self.assertEqual(Path(module.__file__).resolve(), Path(dist.locate_file(relative)).resolve())
+            relative = name.replace(".", "/") + (
+                "/__init__.py" if name == "inspect_robots_b601" else ".py"
+            )
+            self.assertEqual(
+                Path(module.__file__).resolve(), Path(dist.locate_file(relative)).resolve()
+            )
 
     def test_public_import_and_registry_discovery_are_hardware_free(self):
         code = """
@@ -66,9 +84,16 @@ assert not {"rclpy", "motorbridge", "b601_hardware.direct"} & sys.modules.keys()
 
     def test_inspect_cli_discovers_both_plugins(self):
         result = subprocess.run(
-            [sys.executable, "-I", str(Path(sys.executable).with_name("inspect-robots")),
-             "list", "embodiments"],
-            check=True, capture_output=True, text=True,
+            [
+                sys.executable,
+                "-I",
+                str(Path(sys.executable).with_name("inspect-robots")),
+                "list",
+                "embodiments",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
         self.assertIn("b601_ros", result.stdout)
         self.assertIn("b601_motorbridge", result.stdout)
@@ -76,6 +101,7 @@ assert not {"rclpy", "motorbridge", "b601_hardware.direct"} & sys.modules.keys()
 
     def test_ros_conformance_without_ros(self):
         from inspect_robots.conformance import assert_embodiment_conformant
+
         from inspect_robots_b601 import B601Embodiment
 
         robot = B601Embodiment()
@@ -87,6 +113,7 @@ assert not {"rclpy", "motorbridge", "b601_hardware.direct"} & sys.modules.keys()
 
     def test_registered_tasks_policy_and_scorer_are_available(self):
         from inspect_robots.registry import resolve
+
         from inspect_robots_b601 import B601Embodiment
         from inspect_robots_b601.benchmarks import JointGoalPolicy, MeasuredJointGoal
 
@@ -112,13 +139,20 @@ assert not {"rclpy", "motorbridge", "b601_hardware.direct"} & sys.modules.keys()
     def test_motorbridge_readonly_reset_uses_installed_core(self):
         from inspect_robots import Scene
         from inspect_robots.conformance import assert_embodiment_conformant
+
         from inspect_robots_b601 import MotorbridgeB601Embodiment
 
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory) / "fake-profile.json"
-            profile.write_text(json.dumps({"joints": [
-                {"name": f"joint{i}", "lower": -1.0, "upper": 1.0} for i in range(1, 7)
-            ]}))
+            profile.write_text(
+                json.dumps(
+                    {
+                        "joints": [
+                            {"name": f"joint{i}", "lower": -1.0, "upper": 1.0} for i in range(1, 7)
+                        ]
+                    }
+                )
+            )
             robot = MotorbridgeB601Embodiment(profile=str(profile), state_dir=directory)
             assert_embodiment_conformant(robot.info)
             with patch("b601_hardware.direct.DirectSession", FakeSession):

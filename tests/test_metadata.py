@@ -1,0 +1,76 @@
+"""Public metadata and artwork must agree with the package's real compatibility."""
+
+import json
+import xml.etree.ElementTree as ET
+from importlib.metadata import version
+
+import pytest
+from PIL import Image
+from scripts.check_version import ROOT, validate
+from scripts.public_api import snapshot
+
+
+def test_version_changelog_and_installed_metadata_agree():
+    assert validate() == version("inspect-robots-b601")
+    assert validate(tag=f"v{version('inspect-robots-b601')}") == validate()
+
+
+def test_public_api_snapshot_requires_an_explicit_review():
+    expected = json.loads((ROOT / "tests/fixtures/public-api.json").read_text())
+    assert snapshot() == expected, (
+        "Review the public API change and SemVer impact before updating this snapshot"
+    )
+
+
+@pytest.fixture
+def version_project(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nversion = "0.2.1"\ndependencies = ["inspect-robots==0.60.0"]\n'
+    )
+    (tmp_path / "CHANGELOG.md").write_text("## [0.2.1] - Unreleased\n")
+    (tmp_path / "README.md").write_text("Inspect%20Robots-0.60.0")
+    return tmp_path
+
+
+@pytest.mark.parametrize("invalid", ["0.02.1", "v0.2.1", "0.2", "0.2.1rc1", "1.0.0-rc.1"])
+def test_invalid_stable_versions_are_rejected(version_project, invalid):
+    project = version_project / "pyproject.toml"
+    project.write_text(project.read_text().replace('"0.2.1"', json.dumps(invalid)))
+    with pytest.raises(ValueError, match="SemVer"):
+        validate(version_project)
+
+
+def test_wrong_tag_missing_changelog_and_stale_badge_are_rejected(version_project):
+    with pytest.raises(ValueError, match="exactly match"):
+        validate(version_project, tag="v0.3.0")
+    (version_project / "CHANGELOG.md").write_text("## [0.2.0]\n")
+    with pytest.raises(ValueError, match="CHANGELOG"):
+        validate(version_project)
+    (version_project / "CHANGELOG.md").write_text("## [0.2.1]\n")
+    (version_project / "README.md").write_text("Inspect%20Robots-0.59.0")
+    with pytest.raises(ValueError, match="badge"):
+        validate(version_project)
+
+
+def test_unreviewed_inspect_range_is_not_advertised_as_an_exact_match(version_project):
+    project = version_project / "pyproject.toml"
+    project.write_text(project.read_text().replace("inspect-robots==", "inspect-robots>="))
+    with pytest.raises(ValueError, match="reviewed"):
+        validate(version_project)
+
+
+def test_banner_is_self_contained_attributed_and_rendered():
+    svg = ROOT / "assets/banner.svg"
+    root = ET.fromstring(svg.read_text())
+    for name in ("Inspect Robots", "RoboCurve", "Seeed Studio"):
+        assert name in svg.read_text()
+    for node in root.iter():
+        assert not node.tag.endswith("script")
+        assert not any(
+            key.endswith("href") and value.startswith(("http:", "https:"))
+            for key, value in node.attrib.items()
+        )
+    assert "MIT License" in (ROOT / "assets/NOTICE.md").read_text()
+    with Image.open(ROOT / "assets/banner.png") as image:
+        assert image.format == "PNG"
+        assert image.size == (1600, 600)

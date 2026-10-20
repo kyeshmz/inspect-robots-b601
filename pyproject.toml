@@ -4,22 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inspect-robots-b601"
-version = "0.2.0"
+version = "0.2.1"
 description = "Seeed B601-RS embodiments and measured-state benchmarks for Inspect Robots"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = ["inspect-robots==0.60.0", "numpy>=1.24,<2", "pillow>=10,<13"]
-classifiers = ["Programming Language :: Python :: 3", "Operating System :: POSIX :: Linux"]
+classifiers = ["Programming Language :: Python :: 3", "Operating System :: POSIX :: Linux", "Typing :: Typed", "Development Status :: 3 - Alpha"]
 
 [project.optional-dependencies]
 agent = ["inspect-robots-agent==0.28.0"]
 motorbridge = ["motorbridge==0.5.6"]
-test = ["pytest>=8,<9", "httpx>=0.27,<1", "inspect-robots-agent==0.28.0"]
-dev = ["inspect-robots-b601[test]", "build>=1.2,<2", "twine>=6,<7"]
+test = ["pytest>=8,<9", "httpx>=0.27,<1", "inspect-robots-agent==0.28.0", "tomli>=2; python_version<'3.11'"]
+dev = ["inspect-robots-b601[test]", "build>=1.2,<2", "twine>=6,<7", "mypy>=1.11,<2", "ruff>=0.6,<1", "pytest-cov>=5,<8", "tomli>=2; python_version<'3.11'"]
+art = ["cairosvg>=2.7,<3"]
 
 [project.urls]
 Repository = "https://github.com/kyeshmz/inspect-robots-b601"
 Issues = "https://github.com/kyeshmz/inspect-robots-b601/issues"
+Documentation = "https://github.com/kyeshmz/inspect-robots-b601/blob/main/docs/testing.md"
+Changelog = "https://github.com/kyeshmz/inspect-robots-b601/blob/main/CHANGELOG.md"
 
 [project.entry-points."inspect_robots.embodiments"]
 b601_ros = "inspect_robots_b601:B601Embodiment"
@@ -43,6 +46,37 @@ b601-commission = "b601_hardware.direct:main"
 where = ["src"]
 include = ["inspect_robots_b601*", "b601_hardware*"]
 namespaces = false
+
+[tool.setuptools.package-data]
+inspect_robots_b601 = ["py.typed"]
+b601_hardware = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+files = ["src", "tests/typing"]
+
+[[tool.mypy.overrides]]
+module = ["rclpy.*", "action_msgs.*", "control_msgs.*", "rcl_interfaces.*", "sensor_msgs.*", "trajectory_msgs.*", "rebotarm_msgs.*", "motorbridge.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.coverage.run]
+branch = true
+source = ["inspect_robots_b601", "b601_hardware"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 75
+exclude_also = ["if TYPE_CHECKING:", "if __name__ == .__main__.:", "@(abc\\.)?abstractmethod", "^\\s*\\.\\.\\.$"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

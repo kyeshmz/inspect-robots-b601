@@ -81,8 +81,11 @@ class CommissioningTests(unittest.TestCase):
 
     def make_core(self, **kwargs):
         return CommissioningCore(
-            self.motor, self.bounds, max_feedback_age=0.1,
-            persisted_stopped=kwargs.get("persisted_stopped", False), clock=self.clock,
+            self.motor,
+            self.bounds,
+            max_feedback_age=0.1,
+            persisted_stopped=kwargs.get("persisted_stopped", False),
+            clock=self.clock,
         )
 
     def begin(self, delta=0.005, duration=2.0):
@@ -136,16 +139,27 @@ class CommissioningTests(unittest.TestCase):
     def test_invalid_constructor_inputs_are_hardware_free(self):
         for bounds in ([], [(1.0, -1.0)] * 6, [(0.0, math.nan)] * 6):
             with self.subTest(bounds=bounds), self.assertRaises(ValueError):
-                CommissioningCore(self.motor, bounds, max_feedback_age=0.1,
-                                  persisted_stopped=False, clock=self.clock)
+                CommissioningCore(
+                    self.motor,
+                    bounds,
+                    max_feedback_age=0.1,
+                    persisted_stopped=False,
+                    clock=self.clock,
+                )
         self.assertEqual(self.motor.calls, [])
 
     def test_activation_only_prepares_and_enables_joint1_with_fresh_read_each(self):
         self.motor.positions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
         self.core.activate(self.clock.now)
-        self.assertEqual(self.motor.calls, [
-            ("read",), ("prepare", "joint1", 0.1), ("read",), ("enable", "joint1"),
-        ])
+        self.assertEqual(
+            self.motor.calls,
+            [
+                ("read",),
+                ("prepare", "joint1", 0.1),
+                ("read",),
+                ("enable", "joint1"),
+            ],
+        )
         self.assertEqual(self.core.state, State.ACTIVE)
 
     def test_measured_tolerance_projects_hold_but_not_explicit_target(self):
@@ -257,7 +271,9 @@ class CommissioningTests(unittest.TestCase):
 
     def test_stale_feedback_after_prepare_never_enables(self):
         self.motor.after_prepare = lambda: setattr(
-            self.motor, "sample", PositionSample([0.0] * 6, 99.0, 100.0),
+            self.motor,
+            "sample",
+            PositionSample([0.0] * 6, 99.0, 100.0),
         )
         with self.assertRaises(FeedbackError):
             self.core.activate(self.clock.now)
@@ -275,8 +291,10 @@ class CommissioningTests(unittest.TestCase):
             ([0.005] + [0.0] * 5, 0.1, JOINT_NAMES),
             ([0.005, 0.001] + [0.0] * 4, 2.0, JOINT_NAMES),
         ]
-        cases.extend(([0.005] + [0.0] * 5, duration, JOINT_NAMES)
-                     for duration in (0, -1, 5.001, math.inf, math.nan))
+        cases.extend(
+            ([0.005] + [0.0] * 5, duration, JOINT_NAMES)
+            for duration in (0, -1, 5.001, math.inf, math.nan)
+        )
         before = list(self.motor.writes)
         for target, duration, names in cases:
             with self.subTest(target=target, duration=duration), self.assertRaises(GoalRejected):
@@ -429,8 +447,13 @@ class CommissioningTests(unittest.TestCase):
         with self.assertRaises(MotionError) as raised:
             self.tick_at(2.01)
         message = str(raised.exception)
-        for detail in ("target_rad=0.005", "last_command_rad=0.004", "measured_rad=0.0002",
-                       "error_rad=0.0048", "tolerance_rad=0.0006"):
+        for detail in (
+            "target_rad=0.005",
+            "last_command_rad=0.004",
+            "measured_rad=0.0002",
+            "error_rad=0.0048",
+            "tolerance_rad=0.0006",
+        ):
             self.assertIn(detail, message)
         self.assertTrue(self.core.stop_latched)
 
@@ -477,8 +500,9 @@ class CommissioningTests(unittest.TestCase):
             self.tick_at(0.2)
         self.assertIs(raised.exception, original)
         self.assertIs(self.core.report.primary.error, original)
-        self.assertEqual([f.operation for f in self.core.report.cleanup],
-                         ["disable.feedback", "disable"])
+        self.assertEqual(
+            [f.operation for f in self.core.report.cleanup], ["disable.feedback", "disable"]
+        )
         self.core.close()
         self.assertEqual(self.motor.writes[-1], ("close",))
 
@@ -496,10 +520,15 @@ class CommissioningTests(unittest.TestCase):
         report = self.core.close()
         self.assertEqual(self.core.state, State.CLOSED)
         self.assertEqual(self.core.goal_state, GoalState.CANCELED)
-        self.assertEqual(self.motor.writes, [
-            ("prepare", "joint1", 0.0), ("enable", "joint1"),
-            ("disable", "joint1"), ("close",),
-        ])
+        self.assertEqual(
+            self.motor.writes,
+            [
+                ("prepare", "joint1", 0.0),
+                ("enable", "joint1"),
+                ("disable", "joint1"),
+                ("close",),
+            ],
+        )
         self.assertTrue(report.disable_acknowledged)
         self.assertFalse(report.torque_off_confirmed)
         self.assertIsNone(report.primary)

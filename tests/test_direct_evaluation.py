@@ -23,25 +23,49 @@ def test_inspect_evaluation_through_real_direct_core(monkeypatch, tmp_path, task
     motor, ledger, owner = FakeMotor(), FakeLedger(), FakeOwner()
 
     def factory(profile, state_dir):
-        return DirectSession(profile, state_dir, transport=motor, ledger=ledger,
-                             owner_factory=lambda: owner, period=0.005)
+        return DirectSession(
+            profile,
+            state_dir,
+            transport=motor,
+            ledger=ledger,
+            owner_factory=lambda: owner,
+            period=0.005,
+        )
 
     report = tmp_path / "synthetic-report.json"
-    report.write_text(json.dumps({
-        "schema": "b601-direct-joint1-test-v1", "success": True, "cleanup": [],
-        "profile_sha256": hashlib.sha256(PROFILE.read_bytes()).hexdigest(),
-        "recorded_at_unix_s": time.time(), "requested_delta_rad": 0.005,
-        "duration_s": 2.0, "disable_acknowledged": True, "measured_delta_rad": 0.005,
-    }))
+    report.write_text(
+        json.dumps(
+            {
+                "schema": "b601-direct-joint1-test-v1",
+                "success": True,
+                "cleanup": [],
+                "profile_sha256": hashlib.sha256(PROFILE.read_bytes()).hexdigest(),
+                "recorded_at_unix_s": time.time(),
+                "requested_delta_rad": 0.005,
+                "duration_s": 2.0,
+                "disable_acknowledged": True,
+                "measured_delta_rad": 0.005,
+            }
+        )
+    )
     robot = MotorbridgeB601Embodiment(
-        profile=str(PROFILE), state_dir=str(tmp_path), allow_motion=True,
-        activate_on_reset=True, operator_supported_arm=True, tracking_report=str(report),
+        profile=str(PROFILE),
+        state_dir=str(tmp_path),
+        allow_motion=True,
+        activate_on_reset=True,
+        operator_supported_arm=True,
+        tracking_report=str(report),
     )
     robot.info = replace(robot.info, name="fake-b601-motorbridge", is_simulated=True)
     monkeypatch.setattr("b601_hardware.direct.DirectSession", factory)
     try:
-        log, = eval(task_factory(), JointGoalPolicy(), robot, log_dir=str(tmp_path / "logs"),
-                    approver=DeltaLimitApprover(robot.info.action_space, max_delta=0.002))
+        (log,) = eval(
+            task_factory(),
+            JointGoalPolicy(),
+            robot,
+            log_dir=str(tmp_path / "logs"),
+            approver=DeltaLimitApprover(robot.info.action_space, max_delta=0.002),
+        )
         assert log.status == "success"
         assert log.results.metrics["b601_measured_goal"] == 1.0
     finally:
@@ -58,8 +82,12 @@ def test_synthetic_profile_cannot_open_a_physical_session():
 
 
 @pytest.mark.parametrize("command", ["recover", "test-joint1"])
-def test_operator_actions_require_acknowledgement_before_session_creation(monkeypatch, command, tmp_path):
-    monkeypatch.setattr("b601_hardware.direct.DirectSession", lambda *_: pytest.fail("No physical session"))
+def test_operator_actions_require_acknowledgement_before_session_creation(
+    monkeypatch, command, tmp_path
+):
+    monkeypatch.setattr(
+        "b601_hardware.direct.DirectSession", lambda *_: pytest.fail("No physical session")
+    )
     with pytest.raises(SystemExit) as error:
         main([command, "--profile", str(PROFILE), "--state-dir", str(tmp_path)])
     assert error.value.code == 2

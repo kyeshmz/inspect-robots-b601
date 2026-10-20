@@ -48,8 +48,10 @@ The last runner drives the installed CLI with sockets, session creation, ledger
 construction, and provider subprocesses forbidden for help/check/rejection.
 It compares all fixture bytes before and after. It then runs the real installed
 agent, adapter, core, HOLD worker, evaluator, scorer, logs, and HTML viewer.
-Only external motor, ownership, and provider I/O are fake. It also tests the
-actual provider-only child against a local fake HTTP server, including a slow
+Only external motor and ownership are fake in the joined cases. Provider input
+is redirected to a local fake HTTP server while the actual provider-only child
+runs. Positive nudge, false done, and reflected provider failures share this
+path, including the installed HTML viewer. Separate HTTP tests cover a slow
 body and total-lifetime cancellation. No external model request is allowed.
 
 Do not run `b601-physical-agent run`, `b601-commission`, `reset()`, ROS, CAN,
@@ -79,5 +81,5 @@ runtime output, and HTML report still exist after all commands finish.
 ## Helpers
 
 Use `tests/packaging/test_physical_installed.py` as shown above. Do not replace
-it with source-only assertions. Use `@maintain-verification-skill` when the
-command or acceptance paths change. Keep the feature map consistent.
+it with source-only assertions. Update this skill and its feature map when
+the command or acceptance paths change.

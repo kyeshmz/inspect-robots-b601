@@ -112,6 +112,9 @@ The only task choices are `joint1-nudge`, a +0.0015-rad relative goal, and `hold
 The trial captures one measured initial pose. Its allowed joint1 interval is
 the initial-to-goal interval plus 0.0006 rad tolerance, intersected with the
 reviewed profile bounds. The interval never moves with subsequent actions.
+The core checks its actual activation samples against that frozen origin and
+goal before preparation and again before enable. Inconsistent drift or a newly
+infeasible goal fails without shifting the trial origin.
 An infeasible goal, invalid provider target, complete invalid interpolated
 chunk, or violating dispatch terminates the trial and follows existing stop
 persistence. Targets are vetoed, not clamped into apparent success.
@@ -128,6 +131,9 @@ Each provider-only HTTP child has a five-second total lifetime including body
 consumption. Requests and responses have one-MiB body limits. The parent kills
 and joins a timed-out or interrupted HTTP child. No abandoned evaluation thread
 can later apply a reply. Redirects, proxies, and HTTP retries are disabled.
+HTTP failure bodies and Responses failure messages are withheld before the
+agent can log them. Terminal diagnostics retain the HTTP status or failure
+type, not provider error text that might reflect the selected credential.
 The runner owns the injected transport because agent 0.28 has no public policy
 timeout parameter or close method.
 

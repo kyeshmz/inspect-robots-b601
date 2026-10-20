@@ -65,7 +65,7 @@ ruff format --check src tests scripts
 python -m mypy
 python -m pytest --cov
 python -m scripts.check_version
-python -m scripts.check_version --tag v0.5.0  # Validation only, not tag creation.
+python -m scripts.check_version --tag v0.5.0
 python -m build
 python -m twine check dist/*
 ```

@@ -1,5 +1,3 @@
-"""Isolated HTTP I/O only. This child never imports or owns a robot session."""
-
 from __future__ import annotations
 
 import base64
@@ -63,10 +61,13 @@ class _BoundedTransport(httpx.BaseTransport):
         result = json.loads(completed.stdout)
         if result.get("failures"):
             raise SafetyAbort("Isolated provider failures: " + json.dumps(result["failures"]))
+        if result["status"] != 200:
+            raise SafetyAbort(f"Physical provider HTTP {result['status']}; no retry or recovery")
         response_body = base64.b64decode(result["body"], validate=True)
-        if result["status"] == 200:
-            self._check_reply(response_body)
-        return httpx.Response(result["status"], content=response_body)
+        if json.loads(response_body).get("status") == "failed":
+            raise SafetyAbort("Physical provider Responses status failed; no retry or recovery")
+        self._check_reply(response_body)
+        return httpx.Response(200, content=response_body)
 
     def close(self) -> None:
         self.closed = True
@@ -93,12 +94,14 @@ def main() -> None:
             ),
             stream=True,
         )
-        body = bytearray()
-        for chunk in response.iter_bytes():
-            body.extend(chunk)
-            if len(body) > MAX_BODY:
-                raise ValueError("Provider response exceeds the physical trial body budget")
-        result.update(status=response.status_code, body=base64.b64encode(body).decode("ascii"))
+        result["status"] = response.status_code
+        if response.status_code == 200:
+            body = bytearray()
+            for chunk in response.iter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_BODY:
+                    raise ValueError("Provider response exceeds the physical trial body budget")
+            result["body"] = base64.b64encode(body).decode("ascii")
     except BaseException as error:
         failures.append({"operation": "request", "type": type(error).__name__})
     finally:

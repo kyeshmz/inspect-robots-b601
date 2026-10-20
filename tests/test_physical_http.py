@@ -73,6 +73,8 @@ def test_child_preserves_request_and_both_close_failures_without_secrets(monkeyp
     import io
 
     class Response:
+        status_code = 200
+
         def iter_bytes(self):
             raise ValueError("secret-must-not-be-logged")
 
@@ -109,6 +111,44 @@ def test_child_preserves_request_and_both_close_failures_without_secrets(monkeyp
         {"operation": "response.close", "type": "OSError"},
         {"operation": "client.close", "type": "RuntimeError"},
     ]
+
+
+def test_child_withholds_http_failure_body(monkeypatch, capsys):
+    import io
+
+    class Response:
+        status_code = 401
+
+        def iter_bytes(self):
+            pytest.fail("An HTTP failure body must not be consumed or forwarded")
+
+        def close(self):
+            pass
+
+    class Client:
+        def build_request(self, *args, **kwargs):
+            return object()
+
+        def send(self, *args, **kwargs):
+            return Response()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.TextIOWrapper(
+            io.BytesIO(
+                json.dumps(
+                    {"url": "https://physical.invalid", "headers": {}, "body": "e30="}
+                ).encode()
+            )
+        ),
+    )
+    monkeypatch.setattr(_physical_http.httpx, "Client", lambda **kwargs: Client())
+    _physical_http.main()
+    assert json.loads(capsys.readouterr().out) == {"status": 401, "failures": []}
 
 
 @pytest.mark.parametrize("stall", [False, True])

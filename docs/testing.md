@@ -199,15 +199,20 @@ The acceptance verifies installed origins and exact pins. It drives the actual
 help/check/rejection executable with external effects forbidden and checks
 unchanged fixture bytes. The runtime tests use the real installed agent,
 adapter, direct core, independent HOLD worker, evaluator, measured scorer,
-logs, and HTML viewer. External motor, ownership, and provider boundaries are
-fake. A local fake HTTP server verifies provider-child total-lifetime
-cancellation while consuming a slow body. No paid request, CAN, ROS, SDK
-activation, operational state creation, or actual-arm qualification occurs.
+logs, and HTML viewer. The joined cases execute the real provider-only child
+with its endpoint redirected to loopback fake HTTP. Only external motor and
+ownership are replaced. A local fake HTTP server also verifies provider-child
+total-lifetime cancellation while consuming a slow body. No paid request, CAN,
+ROS, SDK activation, operational state creation, or actual-arm qualification occurs.
 
 The positive fake nudge measures 0.2015 rad from a 0.2-rad initial pose and
-scores 1. Done without motion scores 0. Fault cases include full-chunk and
-cumulative corridor violations, changing or expired evidence, retained or
-external stops, stale feedback, busy ownership, late/stalled provider replies,
+scores 1. Done without motion scores 0. Both use the joined path, as do HTTP
+errors and HTTP-200 Responses failures that reflect a synthetic selected key.
+The key must be absent from saved evaluations, summaries, stdout, stderr,
+and rendered HTML. Fault cases include activation drift before prepare and
+enable, newly infeasible goals, full-chunk and cumulative corridor violations,
+changing or expired evidence, retained or external stops, stale feedback,
+busy ownership, late/stalled provider replies,
 interrupts, budget exhaustion, and finalization failures after score 1.
 
 For a reusable build/doctor/drive/evidence recipe, read

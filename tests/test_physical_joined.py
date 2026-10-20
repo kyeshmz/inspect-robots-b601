@@ -114,6 +114,12 @@ def test_joined_cli_provider_child_and_measured_outcome(
             assert motor.positions == [0.2, 0.1, -0.1, 0, 0, 0]
             assert summary["requests"] == 1
         (log,) = [p for p in args.log_dir.glob("*.json") if p.name != "physical-agent-summary.json"]
+        if scenario in ("http-error", "failed-responses"):
+            diagnostic = f"HTTP {status}" if scenario == "http-error" else "Responses status failed"
+            assert (
+                f"SafetyAbort: Physical provider {diagnostic}; no retry or recovery"
+                in log.read_text()
+            )
         report = tmp_path / "report.html"
         viewed = real_run(
             [

@@ -1,44 +1,58 @@
-# Use the repository locally
+# Start without a robot
 
 This repository is an installable **Inspect Robots B601 adapter**, not a hosted
 service or a remote-control stack. No cloud account, app credentials, pairing,
 broker or extra network transport is needed.
 
-Start with software-only checks, then the official ROS mock. Physical control
-remains a separate reviewed, operator-only commissioning stage.
+First discover the adapters and check their metadata. Then choose development
+tests or the official ROS mock. Physical control remains a separate reviewed,
+operator-only commissioning stage.
 
-## 1. Clone, install, test
+## Install the release
 
-On a development/operator computer with Python **3.10–3.12**:
+On a Linux computer with Python **3.10 through 3.12**, create an environment.
+The example uses Python 3.12. Install that interpreter first if `python3.12`
+is not on your path.
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install 'https://github.com/kyeshmz/inspect-robots-b601/releases/download/v0.4.0/inspect_robots_b601-0.4.0-py3-none-any.whl'
+inspect-robots list embodiments
+```
+
+The registry lists `b601_ros` and `b601_motorbridge`. No connection occurs.
+Run the [README contract example](../README.md#check-the-adapter-without-a-robot)
+to check the six-joint ROS declaration without importing ROS or Motorbridge.
+Expect `B601 ROS contract OK. No hardware connected.`
+
+This proves plugin discovery and metadata conformance, not simulated motion.
+The default `simulated=True` selects the official ROS mock. It still needs ROS
+at `reset()`. No ROS installation is needed for the contract example.
+
+The package is not published to PyPI. Use the wheel URL, not the bare package
+name. See [publisher setup](publishing.md). No cloud account or robot credentials
+are needed. Installation downloads need network access.
+
+## Develop from a checkout
+
+Use a separate directory and environment for development:
 
 ```bash
 git clone https://github.com/kyeshmz/inspect-robots-b601.git
 cd inspect-robots-b601
 python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install 'pip==25.3'
 python -m pip install -e '.[dev]'
 python -m pytest
 python -m mypy
-inspect-robots list embodiments
 ```
 
-Expected: software tests and typing pass, and the registry lists `b601_ros` and
-`b601_motorbridge`. The default suite uses fake hardware and mocked model
-responses. It needs no ROS, CAN interface, robot or paid inference credentials.
+Expect passing software tests and typing. The tests use fake hardware and
+mocked model responses, without ROS, CAN, a robot, or paid inference. See
+[contributing](../CONTRIBUTING.md) for the complete quality gates.
 
-For installation without a repository checkout, use the
-[v0.4.0 wheel](https://github.com/kyeshmz/inspect-robots-b601/releases/tag/v0.4.0):
-
-```bash
-python -m pip install 'https://github.com/kyeshmz/inspect-robots-b601/releases/download/v0.4.0/inspect_robots_b601-0.4.0-py3-none-any.whl'
-```
-
-The short package-name PyPI installation needs the separate
-[publisher setup](publishing.md). A GitHub wheel or Git-tag installation works
-without publishing to PyPI.
-
-## 2. Operator computer and robot computer
+## Operator and robot computers
 
 They can be the same computer or different computers:
 
@@ -54,23 +68,23 @@ flowchart LR
     R --> L[Evaluation logs and HTML reports]
 ```
 
-If the robot is a different computer, run the robot-side commands there—locally
-or in your existing administrative SSH shell. This package does not configure
-SSH, add a network service, expose ROS to the Internet or implement a remote
+If the robot is a different computer, run the robot-side commands there, either
+locally or in your existing administrative SSH shell. This package does not
+configure SSH, add a network service, expose ROS to the Internet, or implement a remote
 command protocol. Do not copy robot calibration or stop-state files to the
 operator computer just to run the software tests.
 
-## 3. Run the official ROS mock on the ROS computer
+## Run the official ROS mock
 
 Use Ubuntu 22.04 / ROS 2 Humble and its **system Python 3.10**. The Seeed ROS
-workspace must already be built; this Python package does not install or start
-a hardware driver. Create the venv with system packages available:
+workspace must already be built. This Python package does not install or start
+a hardware driver. Use a separate `.venv-ros` with system packages available:
 
 ```bash
-python3 -m venv --system-site-packages .venv
-source .venv/bin/activate
+/usr/bin/python3 -m venv --system-site-packages .venv-ros
+source .venv-ros/bin/activate
 python -m pip install 'pip==25.3'
-python -m pip install -e .
+python -m pip install 'https://github.com/kyeshmz/inspect-robots-b601/releases/download/v0.4.0/inspect_robots_b601-0.4.0-py3-none-any.whl'
 ```
 
 In both robot-side terminals, source the runtime and the reviewed workspace:
@@ -78,7 +92,7 @@ In both robot-side terminals, source the runtime and the reviewed workspace:
 ```bash
 source /opt/ros/humble/setup.bash
 source /path/to/ros2_ws/install/setup.bash
-source .venv/bin/activate
+source .venv-ros/bin/activate
 export ROS_DOMAIN_ID=61 ROS_LOCALHOST_ONLY=1
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 unset ROS_DISCOVERY_SERVER ROS_STATIC_PEERS
@@ -108,7 +122,7 @@ to build and check the pinned mock on a hosted runner, with no robot involved.
 See [the complete testing guide](testing.md) for ROS protocol tests and optional
 explicitly acknowledged agent-in-simulation runs.
 
-## 4. View the results
+## View the results
 
 On the machine that contains the logs:
 
@@ -120,7 +134,7 @@ This renders HTML reports. If the operator is elsewhere, copy the logs/reports
 using your existing file-transfer method and open them locally. Report viewing
 does not require access to the robot and does not start another controller.
 
-## 5. Actual hardware is a separate procedure
+## Keep physical commissioning separate
 
 Direct Motorbridge remains **joint1-only**; joints2–6 are observed, not held.
 Use the robot's actual reviewed profile and its existing shared state directory.

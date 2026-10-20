@@ -1,183 +1,148 @@
-[![B601-RS integration banner: Inspect Robots, RoboCurve, Seeed Studio and Hugging Face](https://raw.githubusercontent.com/kyeshmz/inspect-robots-b601/main/assets/banner.png)](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/quickstart.md)
-
-# inspect-robots-b601
+[![B601-RS integration banner with Inspect Robots, RoboCurve, Seeed Studio, and optional Hugging Face ecosystem artwork](assets/banner.png)](docs/quickstart.md)
 
 <div align="center">
 
-[![Tests](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/ci.yml/badge.svg)](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/ci.yml)
+# inspect-robots-b601
+
+Seeed reBot Arm **B601-RS** adapters and measured-state benchmarks for
+[Inspect Robots](https://github.com/robocurve/inspect-robots).
+
+[![Status: alpha](https://img.shields.io/badge/status-alpha-blue)](#scope-and-safety)
+[![CI](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/ci.yml/badge.svg)](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/ci.yml)
 [![Quality](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/quality.yml/badge.svg)](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/quality.yml)
 [![Official Seeed mock](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/official-mock.yml/badge.svg)](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/official-mock.yml)
-[![Built on Inspect Robots](https://img.shields.io/badge/Inspect%20Robots-0.60.0-005f73)](https://github.com/robocurve/inspect-robots/releases/tag/v0.60.0)
-[![RoboCurve](https://img.shields.io/badge/ecosystem-RoboCurve-005f73)](https://github.com/robocurve)
-[![Seeed Studio B601-RS](https://img.shields.io/badge/hardware-Seeed%20Studio%20B601--RS-8dc21f)](https://wiki.seeedstudio.com/rebot_arm_b601_rs_ros2_integration/)
-[![Typing](https://img.shields.io/badge/typing-mypy%20strict-005f73)](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/CONTRIBUTING.md)
-[![SemVer](https://img.shields.io/badge/versioning-SemVer%202.0.0-005f73)](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/versioning.md)
-[![Hugging Face ecosystem](https://img.shields.io/badge/model%20ecosystem-Hugging%20Face-FFD21E?logo=huggingface)](https://huggingface.co/)
+[![Release v0.4.0](https://img.shields.io/badge/release-v0.4.0-blue)](https://github.com/kyeshmz/inspect-robots-b601/releases/tag/v0.4.0)
+[![Python 3.10 to 3.12](https://img.shields.io/badge/python-3.10%20to%203.12-blue)](docs/versioning.md)
+[![Built on Inspect Robots 0.60.0](https://img.shields.io/badge/Inspect%20Robots-0.60.0-005f73)](https://github.com/robocurve/inspect-robots/releases/tag/v0.60.0)
+[![Typed](https://img.shields.io/badge/typed-mypy%20strict-005f73)](CONTRIBUTING.md)
+
+[Quickstart](docs/quickstart.md) · [Adapter reference](docs/adapters.md) ·
+[Testing](docs/testing.md) · [Ecosystem](docs/ecosystem.md) ·
+[Contributing](CONTRIBUTING.md)
 
 </div>
 
-Seeed reBot Arm **B601-RS** embodiments and measured-state benchmarks for
-[Inspect Robots](https://github.com/robocurve/inspect-robots).
+Independent community integration by [kyeshmz](https://github.com/kyeshmz).
+Not officially supported or endorsed by RoboCurve, Seeed Studio, or Hugging Face.
+The Hugging Face artwork identifies an optional model ecosystem, not a bundled
+client or a working checkpoint integration. See [artwork attribution](assets/NOTICE.md).
 
-**Independent community integration by kyeshmz.** Built for the RoboCurve
-evaluation ecosystem and Seeed hardware; not an official endorsement or
-sponsorship. [Banner source and attribution](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/assets/NOTICE.md).
+> [!WARNING]
+> This is a local-only alpha adapter, not a commissioned physical controller.
+> Direct Motorbridge controls **joint1 only**. Joints2-6 are observed, not held.
+> Physical tracking readiness remains unresolved. Start without a robot.
 
-This standalone repository contains the adapters, the shared bounded joint1
-commissioning core, regression tests, simulation evaluations and operator-only
-physical test procedure. It does not include credentials, robot calibration,
-stop-state files, ROS, vendor native binaries or a commissioned physical robot.
+## Install
 
-## Clone, install, test
-
-Use Python **3.10–3.12** on Linux; ROS 2 Humble uses Ubuntu 22.04's system Python
-3.10 and a virtual environment created with `--system-site-packages`.
+Use Linux with Python **3.10 through 3.12**. The example uses Python 3.12.
+Install that interpreter first if `python3.12` is not on your path.
 
 ```bash
-git clone https://github.com/kyeshmz/inspect-robots-b601.git
-cd inspect-robots-b601
 python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install 'pip==25.3'
-python -m pip install -e '.[dev]'
-python -m pytest
+python -m pip install 'https://github.com/kyeshmz/inspect-robots-b601/releases/download/v0.4.0/inspect_robots_b601-0.4.0-py3-none-any.whl'
 inspect-robots list embodiments
 ```
 
-The default tests use fake hardware and mocked model responses. **No cloud
-account, network service, ROS installation, robot or model key is needed.**
+The list includes `b601_ros` and `b601_motorbridge`. Installation and discovery
+do not connect to hardware. Downloads need network access, but the checks below
+need no ROS, CAN interface, robot, model key, or network service.
 
-For a package-only installation without a checkout:
+The package is **not published to PyPI**. Use the release wheel above, not
+`pip install inspect-robots-b601`. See [publishing status](docs/publishing.md).
+Inspect stays pinned to 0.60.0 and NumPy below 2 for the reviewed Humble ABI.
+
+## Check the adapter without a robot
+
+Run this in the activated environment:
 
 ```bash
-python -m pip install 'https://github.com/kyeshmz/inspect-robots-b601/releases/download/v0.4.0/inspect_robots_b601-0.4.0-py3-none-any.whl'
-```
+python - <<'PY'
+import sys
 
-The short PyPI form `pip install inspect-robots-b601` requires the separate
-[trusted publisher setup](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/publishing.md).
-Optional `[agent]` and `[motorbridge]` extras install the reviewed policy client
-and SDK. Inspect stays pinned to 0.60.0 and NumPy below 2 for Humble. Installing
-never opens CAN, starts a driver or enables motors.
-
-## Operator computer ≠ robot computer
-
-**[Follow the operator/robot quickstart →](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/quickstart.md)**
-
-```mermaid
-flowchart LR
-    O[Operator terminal] -->|Local shell or existing SSH access| R[Robot computer: Inspect evaluation]
-    R --> A[Local ROS / Motorbridge adapter]
-    R --> L[Evaluation logs and HTML reports]
-```
-
-- **Operator computer:** develop/test the package and read reports. If the robot
-  is another computer, use your existing administrative access to run commands
-  there, or copy reports back for local viewing.
-- **Robot computer:** run Inspect beside its sourced ROS workspace or reviewed
-  CAN/SDK setup. Profiles, persistent stop state and control remain on that host.
-- **Local integration only:** the package does not provide a remote-control
-  transport, hosted service or credential/pairing setup.
-- **Physical trials remain operator-only.** A green software or mock test is
-  not physical tracking qualification.
-
-## Registered components
-
-| Kind | Name | Purpose |
-| --- | --- | --- |
-| Embodiment | `b601_ros` | Six absolute ROS joint-radian targets; optional gripper and compressed cameras |
-| Embodiment | `b601_motorbridge` | Joint1-only direct commissioning; all six joints observed |
-| Task | `b601/hold` | Hold the initial measured pose |
-| Task | `b601/joint1-nudge` | Small initial-pose-relative joint1 movement; other joints fixed |
-| Policy | `b601_scripted` | Deterministic, bounded absolute joint targets |
-| Scorer | `b601_measured_goal` | Measured final error, non-target drift and observed overshoot |
-
-```python
-from inspect_robots_b601 import B601Embodiment, MotorbridgeB601Embodiment
 from inspect_robots.conformance import assert_embodiment_conformant
+from inspect_robots_b601 import B601Embodiment
 
-robot = B601Embodiment()  # Simulation by default; construction does not import ROS.
-assert_embodiment_conformant(robot.info)
-robot.close()
+robot = B601Embodiment()
+try:
+    assert_embodiment_conformant(robot.info)
+    assert robot.info.action_space.shape == (6,)
+    assert robot.info.is_simulated
+    assert not {"rclpy", "motorbridge"} & sys.modules.keys()
+    print("B601 ROS contract OK. No hardware connected.")
+finally:
+    robot.close()
+PY
 ```
 
-Both constructors are hardware-free. Connections happen at `reset()`. Direct
-Motorbridge requires an explicit reviewed profile; no default calibration is
-shipped. Its deployment-specific can1/PCAN identity, native-owner locks, legacy
-stop evidence and verified SDK hashes remain enforced.
+Expect `B601 ROS contract OK. No hardware connected.` This checks metadata and
+lazy imports, not robot motion. The default `simulated=True` selects the
+official ROS mock backend. It is not an in-process simulator. Calling `reset()`
+requires ROS and a running verified mock.
 
-## Test ladder
+For a scored motion trial, follow the [official ROS mock quickstart](docs/quickstart.md#run-the-official-ros-mock).
+Keep physical commissioning separate.
 
-1. **Offline:** `python -m pytest` — conformance, compatibility, fake motors,
-   wire protocol, ownership, durable stops, policy-pause HOLD, measured scoring,
-   mocked LLM responses and the upstream CubePick smoke. No real CAN or model API.
-2. **ROS protocol:** `bash scripts/test-ros.sh` — actual ROS action servers with
-   fake joints/cameras on a dedicated localhost-only test domain.
-3. **Official ROS mock:** launch the official mock separately, then run
-   `b601-evaluate ros-mock --task hold` and `--task joint1-nudge`, or dispatch the
-   hosted **Official Seeed mock** workflow to build and test the pinned mock.
-4. **Agent simulation:** opt-in `b601-evaluate agent-sim`, with an explicit model
-   and paid-inference acknowledgement, against the verified mock only.
-5. **Physical commissioning:** separate `b601-commission` operator commands;
-   never run by pytest, GitHub Actions or the simulation evaluator.
+## What the package provides
 
-See [testing and simulation](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/testing.md), [adapter contract](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/adapters.md)
-and [physical commissioning](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/physical-commissioning.md). Run one stage at a
-time and stop on a failure. Negative safety cases stay unit/protocol tests, not
-physical experiments or automatically chained evaluation tasks.
+Inspect Robots separates the robot interface, or `Embodiment`, from the
+controller, or `Policy`. This package provides two embodiments and a bounded
+scripted policy, not a pretrained B601 VLA.
 
-The scorer reads recorded **measured** positions, not policy targets or run
-status. It rejects missing/malformed measurements, target error, other-joint
-drift and observed overshoot. A completed run is not automatically a successful
-task. Scoring only covers recorded samples; it does not certify continuous-time
-motion or physical safety.
+| Component | Registered name | Contract |
+| --- | --- | --- |
+| ROS embodiment | `b601_ros` | Six absolute targets in `joint1` through `joint6` order, in ROS joint radians. Optional calibrated gripper and compressed cameras. |
+| Direct embodiment | `b601_motorbridge` | One absolute joint1 target in raw motor radians. Observes all six joints. Deployment-specific commissioning only. |
+| Hold task | `b601/hold` | Target the initial measured pose. |
+| Nudge task | `b601/joint1-nudge` | Target a small joint1 offset from the initial measured pose. Score other-joint drift. |
+| Policy | `b601_scripted` | Deterministic, bounded absolute joint targets. |
+| Scorer | `b601_measured_goal` | Check measured final error, non-target drift, and observed overshoot. |
 
-## Distribution
+The public classes are `B601Embodiment` and `MotorbridgeB601Embodiment`.
+Both constructors avoid hardware connections. Motorbridge construction requires
+an explicit profile. No default robot calibration is shipped.
+See [action units, observations, and lifecycle](docs/adapters.md).
 
-```bash
-python -m build
-python -m twine check dist/*
-python -m venv /tmp/opencode/b601-wheel-check
-/tmp/opencode/b601-wheel-check/bin/python -m pip install dist/*.whl
-/tmp/opencode/b601-wheel-check/bin/python -I tests/packaging/test_installed.py
-```
+## Choose the next step
 
-The wheel includes both Python packages and all registered benchmarks. Consumers
-need no source checkout or `PYTHONPATH` override. This repository does not
-automatically publish to PyPI.
+| Goal | Guide | Requirements |
+| --- | --- | --- |
+| Develop or run regression tests | [Contributing](CONTRIBUTING.md) | A source checkout and the `dev` extra. Fake hardware and mocked model responses. |
+| Test ROS behavior without a robot | [Testing and simulation](docs/testing.md) | ROS 2 Humble with fake action servers or the official Seeed mock. |
+| Understand the local runtime | [Operator and robot computers](docs/quickstart.md#operator-and-robot-computers) | The robot host's sourced ROS workspace or reviewed CAN/SDK setup. |
+| Review a physical joint1 trial | [Physical commissioning](docs/physical-commissioning.md) | A qualified operator, reviewed profile, existing stop state, supported arm/load, and independent cutoff. |
+| Evaluate optional model integrations | [Ecosystem and prerequisites](docs/ecosystem.md) | Compatible observations, actions, checkpoint, and separate qualification. |
 
-## Compatibility and development
+The package provides no remote-control transport, hosted service, pairing, or
+app credentials. Control, profiles, and persistent stop state stay on the robot
+computer. Use your existing shell access and file-transfer method when the
+operator computer is elsewhere.
 
-For a development checkout:
+## Scope and safety
 
-```bash
-python -m pip install -e '.[dev]'
-python -m pytest
-```
+- ROS executes one action at a time with fresh feedback. These are not
+  collision-checked MoveIt plans. Physical bounds and gripper endpoints need
+  calibration in the driver's coordinate frame.
+- Direct Motorbridge has no camera, gripper, Cartesian IK, homing, zeroing, or
+  full-arm control. Its deployment-specific can1/PCAN identity, native-owner
+  locks, legacy stop evidence, and verified SDK hashes remain required.
+- No automatic controller handoff, stop acknowledgement, recovery, gain
+  increase, or full-arm activation is provided. Worker HOLD and disable
+  acknowledgements do not prove physical torque-off.
+- A completed run is not necessarily a successful task. The scorer reads
+  recorded measured positions, not policy targets. Recorded samples do not
+  certify continuous-time motion or physical safety.
+- Software, ROS protocol, official mock, optional paid agent simulation, and
+  physical commissioning are separate [test stages](docs/testing.md).
+  Stop on failure. No stage automatically starts a physical trial.
 
-Our classes are checked against Inspect's actual `Embodiment`, `Policy` and
-`Scorer` types, in addition to the hardware-free conformance and runtime tests.
-Both shipped Python packages carry `py.typed`; strict mypy checks every source
-module, including the hardware core. Quality CI also checks Ruff, the public
-API snapshot, version metadata and changelog consistency.
+Quality CI checks Ruff, strict mypy, the public API snapshot, version metadata,
+and branch coverage with a **75% offline floor**, including ROS code that cannot
+execute locally without ROS. This is not upstream's 100% coverage gate or a
+physical safety certificate. Both Python packages ship `py.typed`.
 
-See [contributing](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/CONTRIBUTING.md), [versioning / compatibility](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/versioning.md)
-and [the changelog](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/CHANGELOG.md). This is an alpha community adapter with its
-own version, not an upstream release or a physical safety certification. We
-report actual branch coverage with a 75% offline baseline; we do **not** claim
-Inspect Robots' 100% coverage gate.
-
-## Limits
-
-- ROS uses one action at a time and fresh feedback. These are **not**
-  collision-checked MoveIt plans. Physical bounds and gripper endpoints must be
-  commissioned in the driver's coordinate frame.
-- Direct Motorbridge is a **joint1-only prototype**: joints2–6 are observed,
-  not enabled or held. It has no camera, gripper, Cartesian IK, home or zeroing.
-- Physical tracking readiness remains unresolved. Software tests, mock results,
-  worker HOLD and disable acknowledgements are not proof of physical torque-off.
-- No automatic controller handoff, stop acknowledgement, recovery, gain increase
-  or full-arm activation is provided. Support the arm/load and keep an
-  independent cutoff accessible for operator trials.
-
-See [ecosystem options](https://github.com/kyeshmz/inspect-robots-b601/blob/v0.4.0/docs/ecosystem.md) for WorldEvals, StationeryBench, Isaac
-Lab, XPolicyLab and the remaining integration prerequisites.
+See [compatibility and versioning](docs/versioning.md), [the changelog](CHANGELOG.md),
+and [release artifacts](https://github.com/kyeshmz/inspect-robots-b601/releases/tag/v0.4.0).
+Checkout documentation follows its branch. The `v0.4.0` tag preserves the release
+documentation. No project license has been selected; upstream license badges
+do not apply to this repository.

@@ -9,7 +9,6 @@ import httpx
 import pytest
 
 from inspect_robots_b601 import _physical_http
-from inspect_robots_b601 import physical_agent as physical
 
 
 def test_http_child_reads_bounded_body_without_inherited_environment(monkeypatch, capsys):
@@ -40,7 +39,7 @@ def test_http_child_reads_bounded_body_without_inherited_environment(monkeypatch
     assert base64.b64decode(result["body"]) == b'{"output":[]}'
 
 
-def test_oversized_body_is_rejected(monkeypatch):
+def test_oversized_body_is_rejected(monkeypatch, capsys):
     import io
 
     monkeypatch.setattr(
@@ -64,8 +63,52 @@ def test_oversized_body_is_rejected(monkeypatch):
         return real_client(**kwargs)
 
     monkeypatch.setattr(_physical_http.httpx, "Client", client)
-    with pytest.raises(ValueError, match="body budget"):
-        _physical_http.main()
+    _physical_http.main()
+    assert json.loads(capsys.readouterr().out)["failures"] == [
+        {"operation": "request", "type": "ValueError"}
+    ]
+
+
+def test_child_preserves_request_and_both_close_failures_without_secrets(monkeypatch, capsys):
+    import io
+
+    class Response:
+        def iter_bytes(self):
+            raise ValueError("secret-must-not-be-logged")
+
+        def close(self):
+            raise OSError("secret-must-not-be-logged")
+
+    class Client:
+        def build_request(self, *a, **kw):
+            return object()
+
+        def send(self, request, **kw):
+            return Response()
+
+        def close(self):
+            raise RuntimeError("secret-must-not-be-logged")
+
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.TextIOWrapper(
+            io.BytesIO(
+                json.dumps(
+                    {"url": "https://physical.invalid", "headers": {}, "body": "e30="}
+                ).encode()
+            )
+        ),
+    )
+    monkeypatch.setattr(_physical_http.httpx, "Client", lambda **kw: Client())
+    _physical_http.main()
+    output = capsys.readouterr().out
+    assert "secret-must-not-be-logged" not in output
+    assert json.loads(output)["failures"] == [
+        {"operation": "request", "type": "ValueError"},
+        {"operation": "response.close", "type": "OSError"},
+        {"operation": "client.close", "type": "RuntimeError"},
+    ]
 
 
 @pytest.mark.parametrize("stall", [False, True])
@@ -100,9 +143,9 @@ def test_real_provider_child_is_joined_on_total_lifetime_deadline(monkeypatch, s
     server = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
-    monkeypatch.setattr(physical, "_HTTP_SECONDS", 1.0)
+    monkeypatch.setattr(_physical_http, "HTTP_SECONDS", 1.0)
     replies = []
-    transport = physical._BoundedTransport(lambda: None, replies.append)
+    transport = _physical_http._BoundedTransport(lambda: None, replies.append, max_requests=3)
     try:
         request = httpx.Request(
             "POST", f"http://127.0.0.1:{server.server_port}/responses", content=b"{}"
@@ -128,9 +171,9 @@ def test_real_provider_child_is_joined_on_total_lifetime_deadline(monkeypatch, s
 def test_request_budgets_and_child_failure_are_terminal(monkeypatch):
     from inspect_robots.errors import SafetyAbort
 
-    transport = physical._BoundedTransport(lambda: None, lambda body: None)
+    transport = _physical_http._BoundedTransport(lambda: None, lambda body: None, max_requests=3)
     monkeypatch.setattr(
-        physical.subprocess,
+        _physical_http.subprocess,
         "run",
         lambda *a, **k: subprocess.CompletedProcess(a[0], 1, b"", b"fake"),
     )
@@ -144,7 +187,7 @@ def test_request_budgets_and_child_failure_are_terminal(monkeypatch):
     transport.close()
     with pytest.raises(SafetyAbort):
         transport.handle_request(request)
-    oversized = physical._BoundedTransport(lambda: None, lambda body: None)
+    oversized = _physical_http._BoundedTransport(lambda: None, lambda body: None, max_requests=3)
     with pytest.raises(SafetyAbort, match="body budget"):
         oversized.handle_request(
             httpx.Request("POST", "https://physical.invalid", content=b"x" * (1024 * 1024 + 1))

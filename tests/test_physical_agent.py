@@ -17,6 +17,7 @@ from inspect_robots.errors import SafetyAbort
 from inspect_robots.log import read_eval_log
 
 from b601_hardware.direct import DirectSession
+from inspect_robots_b601 import _physical_http
 from inspect_robots_b601 import physical_agent as physical
 from tests.test_direct_core import FakeMotor, FakeOwner
 from tests.test_physical_owners import existing_state
@@ -147,7 +148,7 @@ def fake_boundaries(monkeypatch, calls, *, on_open=None, on_request=None, motor=
         return subprocess.CompletedProcess(command, 0, reply(*calls[len(requests) - 1]), b"")
 
     monkeypatch.setattr(physical, "DirectSession", session)
-    monkeypatch.setattr(physical.subprocess, "run", serve)
+    monkeypatch.setattr(_physical_http.subprocess, "run", serve)
     return motor, owner, sessions, requests
 
 
@@ -156,7 +157,9 @@ def test_check_is_write_free_sdk_lazy_and_provider_free(tmp_path, monkeypatch, c
     args.command = "check"
     monkeypatch.setattr(physical, "DirectSession", lambda *a, **k: pytest.fail("No session"))
     monkeypatch.setattr("b601_hardware.state.StopLedger", lambda *a, **k: pytest.fail("No ledger"))
-    monkeypatch.setattr(physical.subprocess, "run", lambda *a, **k: pytest.fail("No subprocess"))
+    monkeypatch.setattr(
+        _physical_http.subprocess, "run", lambda *a, **k: pytest.fail("No subprocess")
+    )
     monkeypatch.setattr("socket.socket", lambda *a, **k: pytest.fail("No sockets"))
     before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     assert physical.main(argv(args)) == 0
@@ -439,7 +442,7 @@ def test_failure_paths_never_report_success(tmp_path, monkeypatch, fault):
         )
     if fault == "provider_close":
         monkeypatch.setattr(
-            physical._BoundedTransport,
+            _physical_http._BoundedTransport,
             "close",
             lambda self: (_ for _ in ()).throw(RuntimeError("Fake provider close failure")),
         )

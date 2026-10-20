@@ -3,21 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-import httpx
 import numpy as np
 import numpy.typing as npt
 from inspect_robots import Action, Observation, Scene, StepResult, eval
@@ -33,7 +30,6 @@ from .motorbridge import MotorbridgeB601Embodiment
 
 _MAX_REQUESTS = 3
 _MAX_STEPS = 6
-_HTTP_SECONDS = 5.0
 _ACTIVE_SECONDS = 30.0
 _TOLERANCE = 0.0006
 
@@ -96,8 +92,10 @@ def _configuration(args: argparse.Namespace) -> _RunConfig:
     profile = existing_path(args.profile)
     content = profile.read_bytes()
     value = json.loads(content)
-    if value.get("test_only") is not False:
-        raise ValueError("A reviewed operational profile with test_only=false is required")
+    if value.get("test_only", False) is not False:
+        raise ValueError(
+            "A reviewed operational profile is required; test-only profiles are forbidden"
+        )
     Joint1Transport(value)
     state_dir = existing_path(args.state_dir, directory=True)
     if inspect_existing_stop_state(state_dir, value["legacy_stop_latch"])["stopped"]:
@@ -243,60 +241,18 @@ class _Trial(MotorbridgeB601Embodiment):
                 self.pre_check(np.asarray([[targets["joint1"]]], dtype=np.float64))
 
 
-class _BoundedTransport(httpx.BaseTransport):
-    """The child owns only HTTP. Timeout kills and joins it before evaluation resumes."""
-
-    def __init__(self, gate: Callable[[], None], check_reply: Callable[[bytes], None]) -> None:
-        self._gate, self._check_reply = gate, check_reply
-        self.requests = 0
-        self.closed = False
-
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        self._gate()
-        if self.closed or self.requests >= _MAX_REQUESTS:
-            raise SafetyAbort("Physical provider request budget exhausted or transport closed")
-        body = request.read()
-        if len(body) > 1024 * 1024:
-            raise SafetyAbort("Physical provider request body budget exhausted")
-        self.requests += 1
-        started = time.monotonic()
-        completed = subprocess.run(
-            [sys.executable, "-I", "-m", "inspect_robots_b601._physical_http"],
-            input=json.dumps(
-                {
-                    "url": str(request.url),
-                    "headers": dict(request.headers),
-                    "body": base64.b64encode(body).decode("ascii"),
-                }
-            ).encode(),
-            capture_output=True,
-            timeout=_HTTP_SECONDS,
-            check=False,
-            env={"PATH": str(Path(sys.executable).parent)},
-        )
-        self._gate()
-        if time.monotonic() - started > _HTTP_SECONDS:
-            raise SafetyAbort("Late provider response rejected")
-        if completed.returncode:
-            raise SafetyAbort("Isolated provider request failed; no retry or recovery")
-        result = json.loads(completed.stdout)
-        response_body = base64.b64decode(result["body"], validate=True)
-        if result["status"] == 200:
-            self._check_reply(response_body)
-        return httpx.Response(result["status"], content=response_body)
-
-    def close(self) -> None:
-        self.closed = True
-
-
 def _run(config: _RunConfig) -> dict[str, Any]:
     from inspect_robots_agent import LLMAgentPolicy
+
+    from ._physical_http import _BoundedTransport
 
     if not config.consent.complete:
         raise ValueError("Physical run lacks explicit consent")
     config.log_dir.mkdir(mode=0o700)
     robot = _Trial(config)
-    transport = _BoundedTransport(robot.ensure_active, robot.check_reply)
+    transport = _BoundedTransport(
+        robot.ensure_active, robot.check_reply, max_requests=_MAX_REQUESTS
+    )
     failures: list[dict[str, str]] = []
     result: dict[str, Any] = {
         "schema": "b601-physical-agent-summary-v1",

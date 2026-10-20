@@ -469,6 +469,51 @@ def test_infeasible_goal_does_not_activate_or_infer(tmp_path, monkeypatch):
     assert not any(row[0] == "enable" for row in motor.writes)
 
 
+@pytest.mark.parametrize(
+    "initial,activation_sample,changed_read",
+    [
+        (0.2, 0.205, 3),
+        (0.2, 0.201, 3),
+        (0.9985, 0.9988, 3),
+        (0.9985, 0.9988, 4),
+        (-0.9999, -1.0001, 4),
+    ],
+)
+def test_activation_feedback_cannot_replace_frozen_trial_origin(
+    tmp_path, monkeypatch, initial, activation_sample, changed_read
+):
+    args = configuration(tmp_path, monkeypatch)
+    config = physical._configuration(args)
+    robot = physical._Trial(config)
+    monkeypatch.setattr(physical, "_Trial", lambda config: robot)
+    motor = QuantizedMotor()
+    motor.positions[0] = initial
+    original_read = motor.read_positions
+    reads = 0
+
+    def drift():
+        nonlocal reads
+        reads += 1
+        if reads >= changed_read:
+            motor.positions[0] = activation_sample
+        return original_read()
+
+    motor.read_positions = drift
+    _, owner, sessions, requests = fake_boundaries(monkeypatch, (), motor=motor)
+    result = physical._run(config)
+    assert result["success"] is False
+    assert robot.corridor.initial == initial
+    assert robot.corridor.goal == initial + 0.0015
+    assert requests == []
+    assert motor.writes == (
+        [] if changed_read == 3 else [("prepare", "joint1", initial), ("disable", "joint1")]
+    )
+    assert sessions[0].core.stop_latched
+    assert json.loads((args.state_dir / "stop-state.json").read_text())["stopped"] is True
+    assert sessions[0].closed and not sessions[0]._thread.is_alive()
+    assert owner.closed and motor.closed and not motor.enabled
+
+
 def test_main_reports_verified_result_and_setup_failures(tmp_path, monkeypatch, capsys):
     args = configuration(tmp_path, monkeypatch)
     fake_boundaries(monkeypatch, (DONE,))

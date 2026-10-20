@@ -81,6 +81,58 @@ embodiment. KitchenBench and VibeCheckBench appear in the reviewed WorldEvals
 catalog but not in the public organization repository listing used above.
 They are not automated dependencies here.
 
+## Tested package compatibility
+
+The 2026-10-20 software review used the public B601 v0.4.0 wheel on Linux with
+Python 3.12, Inspect 0.60.0, and NumPy below 2. The following exact base packages
+co-installed in one fresh environment. `pip check`, both CLI plugin lists,
+and the eight installed B601 package tests passed. No hardware, training,
+CUDA, or serving extras were installed.
+
+| Packages | Tested versions | What the result establishes |
+| --- | --- | --- |
+| `inspect-robots-agent` | 0.28.0 | Co-installation and discovery. A separate isolated pair also passed the real B601 evaluation, JSON readback, and HTML report checks described below. |
+| `inspect-robots-isaacsim`, `inspect-robots-xpolicylab`, `inspect-robots-capx`, `inspect-robots-ros` | 0.1.1, 0.1.0, 0.3.1, 0.1.0, respectively | Base dependency resolution and plugin discovery, not B601 runtime support. |
+| `inspect-robots-franka`, `inspect-robots-yam`, `inspect-robots-so101` | 0.1.0, 0.37.0, 0.4.0, respectively | Base co-installation with B601, not interchangeable drivers, action dimensions, or units. |
+| `inspect-robots-widowx`, `inspect-robots-unitree-g1`, `inspect-robots-agibot-a2` | 0.1.0, 0.1.1, 0.1.0, respectively | Base co-installation with B601, not qualification for those robots or checkpoints. |
+
+Co-installation is not a recommendation to install every plugin. Some sibling
+packages register the same policy names, including `openpi` and `gr00t`.
+A listed name does not identify which package's factory won discovery. Use
+separate environments and verify the selected factory before evaluating a
+specific policy.
+
+The [installed-wheel agent acceptance](testing.md#installed-wheel-agent-acceptance)
+goes beyond imports. Both the public B601 v0.4.0 wheel and the branch wheel
+passed two real Inspect evaluations with agent 0.28.0, fake ROS I/O, and mocked
+HTTP responses. The nudge scored 1.0. `done` without motion scored 0.0. Both
+logs reloaded and rendered through the installed CLI. No live model or robot
+was involved. Live inference still requires an authorized provider and the
+[separate official ROS mock procedure](testing.md#4-llm-in-simulation-explicitly-opt-in).
+
+Confirmed limits remain:
+
+- CaP-X 0.3.1 rejects the default B601 configuration at bind time because the
+  camera, gripper, and IK capabilities it requires are absent. Installing the
+  package does not supply them.
+- XPolicyLab 0.1.0 defaults to an eight-dimensional action space. Default B601
+  ROS actions have six dimensions. A compatible checkpoint and explicit
+  observation/action mapping are required before evaluation.
+- IsaacSim 0.1.1 defaults to Franka, not B601. Its base pip package does not
+  supply Isaac Lab, GPU assets, or a B601 model/task.
+- Generic ROS 0.1.0 publishes rosbridge topics. It does not replace Seeed's
+  trajectory-action adapter.
+- The reviewed [RoboHarm snapshot](https://github.com/robocurve/roboharm/blob/5952f0035037604265d5cf38fa24938d4acf7133/pyproject.toml)
+  pins Inspect 0.58.0 and its optional agent to 0.26.0. Those pins conflict
+  with B601's reviewed 0.60.0 and 0.28.0 pins. Use a separate environment.
+- StationeryBench was absent from public PyPI in this review. The optional
+  workflow uses its pinned Git source. Its abstract bimanual mock is not a
+  B601 simulation or behavior test.
+
+Registry catalogs, published traces, and robot-specific training repositories
+are reference material, not installable B601 policy promises. Physical
+qualification is separate from every software result in this section.
+
 ## Policies and simulators
 
 | Package | Use | Missing B601 prerequisites |

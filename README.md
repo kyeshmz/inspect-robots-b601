@@ -52,6 +52,22 @@ The package is **not published to PyPI**. Use the release wheel above, not
 `pip install inspect-robots-b601`. See [publishing status](docs/publishing.md).
 Inspect stays pinned to 0.60.0 and NumPy below 2 for the reviewed Humble ABI.
 
+### Add the optional agent
+
+In the same environment, install the tested RoboCurve agent plugin:
+
+```bash
+python -m pip install 'inspect-robots-agent==0.28.0'
+python -m pip check
+inspect-robots list policies
+```
+
+Expect `agent` alongside `b601_scripted`. The public v0.4.0 wheel and the branch
+wheel pass an [offline agent evaluation, JSON log, and HTML report check](docs/testing.md#installed-wheel-agent-acceptance)
+with Inspect 0.60.0 and agent 0.28.0. That check uses fake ROS I/O and mocked
+provider responses, not a running model or robot. Other plugins have
+[separate compatibility requirements](docs/ecosystem.md#tested-package-compatibility).
+
 ## Check the adapter without a robot
 
 Run this in the activated environment:

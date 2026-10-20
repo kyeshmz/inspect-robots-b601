@@ -2,6 +2,7 @@
   "entry_points": {
     "console_scripts:b601-commission": "b601_hardware.direct:main",
     "console_scripts:b601-evaluate": "inspect_robots_b601.evaluate:main",
+    "console_scripts:b601-realtime": "inspect_robots_b601.realtime:main",
     "inspect_robots.embodiments:b601_motorbridge": "inspect_robots_b601:MotorbridgeB601Embodiment",
     "inspect_robots.embodiments:b601_ros": "inspect_robots_b601:B601Embodiment",
     "inspect_robots.policies:b601_scripted": "inspect_robots_b601.benchmarks:JointGoalPolicy",

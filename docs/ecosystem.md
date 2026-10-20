@@ -1,5 +1,9 @@
 # Which upstream packages to use
 
+The banner uses the [official Hugging Face logo](https://huggingface.co/brand)
+to identify the optional model ecosystem. This does not install a Hugging Face
+client, download a checkpoint or make an arbitrary model B601-compatible.
+
 The immediate testing plan uses [Inspect Robots](https://github.com/robocurve/inspect-robots)
 and its [adapter conformance kit](https://docs.inspectrobots.org/guide/adapters/).
 The core's built-in CubePick runs in the offline suite to check the evaluation

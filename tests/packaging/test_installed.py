@@ -45,11 +45,13 @@ class InstalledPackageTests(unittest.TestCase):
             "b601_hardware/transport.py",
         }
         self.assertTrue(expected <= files, expected - files)
+        script_paths = {
+            Path(sys.executable).with_name(point.name).resolve()
+            for point in dist.entry_points
+            if point.group == "console_scripts"
+        }
         for path in files:
-            if Path(dist.locate_file(path)).resolve() in {
-                Path(sys.executable).with_name("b601-evaluate").resolve(),
-                Path(sys.executable).with_name("b601-commission").resolve(),
-            }:
+            if Path(dist.locate_file(path)).resolve() in script_paths:
                 continue
             top = path.split("/")[0]
             self.assertTrue(
@@ -98,6 +100,20 @@ assert not {"rclpy", "motorbridge", "b601_hardware.direct"} & sys.modules.keys()
         self.assertIn("b601_ros", result.stdout)
         self.assertIn("b601_motorbridge", result.stdout)
         self.assertNotIn("failed to load", result.stderr)
+
+    def test_realtime_help_is_available_without_optional_network_dependencies(self):
+        code = """
+import sys
+from inspect_robots_b601.realtime import main
+assert "aiortc" not in sys.modules
+assert "httpx" not in sys.modules
+main(["--help"])
+"""
+        result = subprocess.run(
+            [sys.executable, "-I", "-c", code], check=True, capture_output=True, text=True
+        )
+        self.assertIn("operator", result.stdout)
+        self.assertIn("robot", result.stdout)
 
     def test_ros_conformance_without_ros(self):
         from inspect_robots.conformance import assert_embodiment_conformant

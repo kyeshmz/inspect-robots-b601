@@ -45,8 +45,10 @@ While this package is **0.y.z**, its API is still experimental:
 Versioned releases are immutable. Do not replace an existing tag or published
 artifact. A tag is `vX.Y.Z`; Python package metadata uses `X.Y.Z`. Development
 changes can accumulate under an unreleased changelog entry until that version is
-deliberately tagged. This task prepares 0.2.1; it does not publish a release or
-upload to PyPI.
+deliberately tagged. Version 0.3.0 adds the optional two-computer Realtime CLI,
+so it is a minor increment rather than a patch. GitHub release assets and PyPI
+publication are separate: a public wheel can be installed directly before the
+PyPI account's trusted publisher is configured. See [publishing](publishing.md).
 
 ## Before tagging
 
@@ -57,7 +59,7 @@ ruff format --check src tests scripts
 python -m mypy
 python -m pytest --cov
 python -m scripts.check_version
-python -m scripts.check_version --tag v0.2.1  # Use the version in pyproject.toml.
+python -m scripts.check_version --tag v0.3.0  # Use the version in pyproject.toml.
 python -m build
 python -m twine check dist/*
 ```

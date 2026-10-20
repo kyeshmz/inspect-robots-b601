@@ -12,6 +12,7 @@ htmlcov/
 coverage.xml
 logs/
 .env
+*.env
 *.local.json
 *.local.ini
 .hardware-state/

@@ -3,7 +3,20 @@
 This package has its own [SemVer policy](docs/versioning.md); its version does
 not track the Inspect Robots framework's version.
 
-## [0.2.1] - Unreleased
+## [0.3.0] - 2026-10-19
+
+### Added
+- Optional `realtime` extra and operator/robot CLIs using new Cloudflare Realtime SFU DataChannels, without a tunnel or public robot listener.
+- Authenticated, size/age/sequence-bounded status, stop and fixed simulation requests; remote physical activation remains unavailable.
+- Robot-local ownership and a read-only physical feedback endpoint; no remote joint-vector, recovery, homing or gain API.
+- Separate-computer setup guide, versioned pip wheel installation and an explicit PyPI trusted-publishing workflow.
+- Cloudflare API contract tests and actual local aiortc DataChannel/reply tests, without live cloud credentials.
+
+### Changed
+- Used the official Hugging Face logo, centered all banner badge text and simplified the arm diagram.
+- Made end-user installation and operator/robot responsibilities the primary README entry points.
+
+## [0.2.1] - Development snapshot
 
 ### Added
 - Strict mypy checks for every shipped source module and Inspect protocol contracts.

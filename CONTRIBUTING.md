@@ -7,7 +7,7 @@ Upstream [development conventions](https://github.com/robocurve/inspect-robots/b
 are the reference, not a claim that every upstream project policy is already met.
 
 ```bash
-python -m pip install -e '.[dev]'
+python -m pip install -e '.[dev,realtime]'
 ruff check src tests scripts
 ruff format --check src tests scripts
 python -m mypy
@@ -18,7 +18,7 @@ python -m scripts.check_version
 Strict mypy covers **all shipped Python source**, including the hardware core,
 and static consumer/protocol contracts. Only missing stubs for optional ROS and
 Motorbridge dependencies are exempted; no first-party module is skipped. `Any`
-is confined to dynamic ROS/native messages, external JSON/config/metadata and
+is confined to dynamic ROS/WebRTC/native messages, external JSON/config/metadata and
 framework registry boundaries. Existing dynamic negative-test fixtures run
 through pytest rather than being advertised as strict-typed tests.
 

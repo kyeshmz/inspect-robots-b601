@@ -1,5 +1,6 @@
 """Public metadata and artwork must agree with the package's real compatibility."""
 
+import hashlib
 import json
 import xml.etree.ElementTree as ET
 from importlib.metadata import version
@@ -62,7 +63,7 @@ def test_unreviewed_inspect_range_is_not_advertised_as_an_exact_match(version_pr
 def test_banner_is_self_contained_attributed_and_rendered():
     svg = ROOT / "assets/banner.svg"
     root = ET.fromstring(svg.read_text())
-    for name in ("Inspect Robots", "RoboCurve", "Seeed Studio"):
+    for name in ("Inspect Robots", "RoboCurve", "Seeed Studio", "Hugging Face"):
         assert name in svg.read_text()
     for node in root.iter():
         assert not node.tag.endswith("script")
@@ -74,3 +75,38 @@ def test_banner_is_self_contained_attributed_and_rendered():
     with Image.open(ROOT / "assets/banner.png") as image:
         assert image.format == "PNG"
         assert image.size == (1600, 600)
+
+
+def test_banner_uses_official_huggingface_paths_and_geometrically_centered_badges():
+    namespace = "{http://www.w3.org/2000/svg}"
+    source = ROOT / "assets/huggingface-logo.svg"
+    assert (
+        hashlib.sha256(source.read_bytes()).hexdigest()
+        == "942cad1ccda905ac5a659dfd2d78b344fccfb84a8a3ac3721e08f488205638a0"
+    )
+    original = ET.fromstring(source.read_bytes())
+    banner = ET.fromstring((ROOT / "assets/banner.svg").read_bytes())
+    embedded = banner.find(f".//{namespace}svg[@id='hugging-face-logo']")
+    assert embedded is not None
+    assert [(node.tag, node.attrib) for node in original] == [
+        (node.tag, node.attrib) for node in embedded
+    ]
+    badges = banner.findall(f".//{namespace}g[@data-badge='true']")
+    assert len(badges) == 4
+    for badge in badges:
+        box, text = badge.find(namespace + "rect"), badge.find(namespace + "text")
+        assert text.get("text-anchor") == "middle"
+        assert text.get("dominant-baseline") == "central"
+        assert float(text.get("x")) == float(box.get("x")) + float(box.get("width")) / 2
+        assert float(text.get("y")) == float(box.get("y")) + float(box.get("height")) / 2
+
+
+def test_two_computer_guide_and_publishing_do_not_claim_a_tunnel_or_pypi_deployment():
+    guide = (ROOT / "docs/quickstart.md").read_text()
+    assert "Operator computer" in guide and "Robot computer" in guide
+    assert "No Cloudflare Tunnel" in guide
+    assert "physical_activation_available: false" in guide
+    assert "v" + version("inspect-robots-b601") in guide
+    publishing = (ROOT / "docs/publishing.md").read_text()
+    assert "pending publisher" in publishing
+    assert "publish.yml" in publishing

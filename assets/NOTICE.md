@@ -5,15 +5,25 @@ robot arm is an original schematic illustration, not a Seeed CAD model. The
 RoboCurve and Seeed Studio lettering and decorative motifs are original banner
 graphics, not copies of their official logo assets.
 
+The Hugging Face icon is the **official, unmodified brand asset** downloaded
+from <https://huggingface.co/datasets/huggingface/brand-assets/resolve/main/hf-logo.svg>,
+as provided by <https://huggingface.co/brand>. `huggingface-logo.svg` preserves
+the original file; the banner embeds its original paths/colors at a smaller
+viewport. Its use identifies the optional model ecosystem, not a bundled model
+integration, sponsorship or endorsement. Hugging Face's trademark remains its
+owner's property.
+
+Original asset SHA-256: `942cad1ccda905ac5a659dfd2d78b344fccfb84a8a3ac3721e08f488205638a0`.
+
 The small Inspect Robots inspector icon is adapted from
 [`robocurve/inspect-robots/docs/assets/inspect-robots-logo.svg`](https://github.com/robocurve/inspect-robots/blob/main/docs/assets/inspect-robots-logo.svg),
 distributed under the upstream MIT license reproduced below. Its blink
 animation is omitted in this static banner.
 
-Inspect Robots/RoboCurve and Seeed Studio names and marks identify the upstream
+Inspect Robots/RoboCurve, Seeed Studio and Hugging Face names and marks identify the upstream
 framework and hardware. They belong to their respective owners. This repository
 is an independent community integration, not an official product, sponsorship or
-endorsement by either organization.
+endorsement by any of these organizations.
 
 ## Inspect Robots icon license
 
@@ -43,5 +53,5 @@ To render locally with the optional development artwork dependencies:
 
 ```bash
 python -m pip install -e '.[art]'
-python -m cairosvg assets/banner.svg -o assets/banner.png
+python -m scripts.render_banner
 ```

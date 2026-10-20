@@ -32,6 +32,11 @@ Doctor does not open CAN, but it does check required runtime availability.
   scorer. It does not access hardware or enable motors.
 - `evaluate.py`: simulation-only CLI policy/approver wiring. Physical commands
   have a different executable and require explicit profile/state paths.
+- `_realtime`: outbound SFU session ownership, authenticated message boundaries
+  and robot-local execution. The operator receives no driver handle; the wire
+  protocol accepts fixed simulation tasks, status and stop, never joint vectors.
+- `realtime.py`: trusted operator/robot role CLIs, with one robot-side executor
+  and explicit profile paths only on the read-only physical endpoint.
 
 One shared core is packaged rather than reimplementing safety in each backend.
 The standalone repository is the package's maintained source; the original

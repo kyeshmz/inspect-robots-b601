@@ -3,6 +3,22 @@
 This package has its own [SemVer policy](docs/versioning.md); its version does
 not track the Inspect Robots framework's version.
 
+## [0.5.0] - Unreleased
+
+### Added
+- `b601-physical-agent check|run` for one operator-attended direct joint1 hold or +0.0015-rad agent trial, separate from simulation and deterministic qualification.
+- Read-only existing-state inspection, existing-only runtime acquisition, a worker-enforced active deadline, terminal trial abort, and retained immutable cleanup receipts.
+- Fixed measured-origin corridor checks over provider targets, complete interpolated chunks, and actual dispatch. Owned HTTP I/O has bounded attempts, body size, total request lifetime, and cancellation.
+- Installed CLI acceptance and real-agent/direct-core tests with fake external boundaries. These tests do not qualify a physical arm.
+
+### Changed
+- Direct action semantics publish the existing 0.002-rad max-step limit. Physical activation rechecks the captured profile and actual tracking report after opening.
+- The direct adapter retains its session after close, including failed cleanup. The new runner checks its final receipt, required logs, and summary persistence before returning success.
+
+### Installation
+- Build this branch's 0.5.0 wheel with the `agent` and `motorbridge` extras. There is no v0.5.0 release or PyPI publication yet.
+- Public 0.4.0 wheels and tags are unchanged and do not contain the new command. See [the attended physical-agent guide](docs/physical-agent.md).
+
 ## [0.4.0] - 2026-10-20
 
 ### Removed

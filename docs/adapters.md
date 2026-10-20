@@ -32,6 +32,9 @@ Doctor does not open CAN, but it does check required runtime availability.
   scorer. It does not access hardware or enable motors.
 - `evaluate.py`: simulation-only CLI policy/approver wiring. Physical commands
   have a different executable and require explicit profile/state paths.
+- `physical_agent.py`: one explicitly authorized joint1 trial, fixed initial-pose
+  corridor, provider isolation, and final result aggregation. `_physical_http.py`
+  owns the injected HTTP transport and provider-only child process.
 
 One shared core is packaged rather than reimplementing safety in each backend.
 The standalone repository is the package's maintained source; the original
@@ -46,3 +49,23 @@ device slots; changing them requires separate hardware qualification.
 The conformance kit cannot prove coordinate calibration, truthful feedback,
 physical HOLD or emergency-stop behavior. `b601_measured_goal` checks recorded
 samples only; use the operator commissioning procedure for real hardware.
+
+## Direct lifecycle additions in unreleased 0.5.0
+
+Direct `ActionSemantics.max_step` publishes the already enforced per-step value
+as a one-element tuple. This lets agent 0.28 interpolate within the adapter's
+actual limit instead of deriving a different limit from the full profile range.
+The constructor's limits and defaults are unchanged.
+
+`MotorbridgeB601Embodiment.abort(reason)` latches a terminal adapter failure and
+asks the existing session to stop and persist evidence. It is not a HOLD,
+recover, acknowledge, or resume operation. `close()` retains the session handle,
+including when cleanup raises. Closing is terminal; do not reset a closed adapter.
+
+`final_report` exposes the owner's immutable `ErrorReport`, or `None` before a
+core exists. If worker termination is unconfirmed, reading the final receipt
+raises rather than waiting on a potentially blocked worker lock.
+`cleanup_complete` reports completed resource cleanup, not overall success.
+An acknowledged disable with a retained primary fault is still a failed trial.
+Neither property confirms physical torque-off. The dedicated runner owns these
+checks and requires successful result persistence before it reports success.

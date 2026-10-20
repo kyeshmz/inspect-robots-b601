@@ -2,6 +2,7 @@
   "entry_points": {
     "console_scripts:b601-commission": "b601_hardware.direct:main",
     "console_scripts:b601-evaluate": "inspect_robots_b601.evaluate:main",
+    "console_scripts:b601-physical-agent": "inspect_robots_b601.physical_agent:main",
     "inspect_robots.embodiments:b601_motorbridge": "inspect_robots_b601:MotorbridgeB601Embodiment",
     "inspect_robots.embodiments:b601_ros": "inspect_robots_b601:B601Embodiment",
     "inspect_robots.policies:b601_scripted": "inspect_robots_b601.benchmarks:JointGoalPolicy",
@@ -248,9 +249,28 @@
       ],
       "returns": "None"
     },
+    "MotorbridgeB601Embodiment.abort": {
+      "parameters": [
+        {
+          "annotation": "str",
+          "default": "<required>",
+          "kind": "POSITIONAL_OR_KEYWORD",
+          "name": "reason"
+        }
+      ],
+      "returns": "None"
+    },
+    "MotorbridgeB601Embodiment.cleanup_complete": {
+      "parameters": [],
+      "returns": "bool"
+    },
     "MotorbridgeB601Embodiment.close": {
       "parameters": [],
       "returns": "None"
+    },
+    "MotorbridgeB601Embodiment.final_report": {
+      "parameters": [],
+      "returns": "ErrorReport | None"
     },
     "MotorbridgeB601Embodiment.reset": {
       "parameters": [

@@ -42,14 +42,18 @@ jobs:
           "$RUNNER_TEMP/wheel-check/bin/python" -I "$GITHUB_WORKSPACE/tests/packaging/test_installed.py"
           "$RUNNER_TEMP/wheel-check/bin/python" -m pip install 'inspect-robots-agent==0.28.0'
           "$RUNNER_TEMP/wheel-check/bin/python" -m pip check
-          "$RUNNER_TEMP/wheel-check/bin/python" -I "$GITHUB_WORKSPACE/tests/test_agent.py" --artifacts-dir "$GITHUB_WORKSPACE/logs/installed-agent"
+          "$RUNNER_TEMP/wheel-check/bin/python" -I "$GITHUB_WORKSPACE/tests/test_agent.py" --expected-b601-version 0.5.0 --artifacts-dir "$GITHUB_WORKSPACE/logs/installed-agent"
+          "$RUNNER_TEMP/wheel-check/bin/python" -m pip install 'motorbridge==0.5.6' 'pytest>=8,<9'
+          "$RUNNER_TEMP/wheel-check/bin/python" -I "$GITHUB_WORKSPACE/tests/packaging/test_physical_installed.py" --artifacts-dir "$GITHUB_WORKSPACE/logs/installed-physical-agent"
           "$RUNNER_TEMP/wheel-check/bin/python" -m pip install 'mypy>=1.11,<2'
           "$RUNNER_TEMP/wheel-check/bin/python" -m mypy --config-file "$GITHUB_WORKSPACE/pyproject.toml" --follow-imports=silent "$GITHUB_WORKSPACE/tests/typing/contracts.py"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: installed-agent-evidence
-          path: logs/installed-agent/
+          path: |
+            logs/installed-agent/
+            logs/installed-physical-agent/
       - uses: actions/upload-artifact@v4
         with:
           name: distributions

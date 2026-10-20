@@ -34,6 +34,10 @@ The package is not published to PyPI. Use the wheel URL, not the bare package
 name. See [publisher setup](publishing.md). No cloud account or robot credentials
 are needed. Installation downloads need network access.
 
+The new physical-agent command requires the unreleased 0.5.0 branch artifact.
+There is no v0.5.0 release yet. The immutable wheel above does not provide it.
+See [the separately gated physical-agent guide](physical-agent.md).
+
 ## Develop from a checkout
 
 Use a separate directory and environment for development:

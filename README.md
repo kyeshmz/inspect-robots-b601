@@ -52,6 +52,10 @@ The package is **not published to PyPI**. Use the release wheel above, not
 `pip install inspect-robots-b601`. See [publishing status](docs/publishing.md).
 Inspect stays pinned to 0.60.0 and NumPy below 2 for the reviewed Humble ABI.
 
+The new `b601-physical-agent check|run` command requires the **unreleased 0.5.0
+branch wheel**. It is not in the public 0.4.0 wheel or on PyPI. Follow the
+[attended direct joint1 agent guide](docs/physical-agent.md) to build and install it.
+
 ### Add the optional agent
 
 In the same environment, install the tested RoboCurve agent plugin:
@@ -127,6 +131,7 @@ See [action units, observations, and lifecycle](docs/adapters.md).
 | Test ROS behavior without a robot | [Testing and simulation](docs/testing.md) | ROS 2 Humble with fake action servers or the official Seeed mock. |
 | Understand the local runtime | [Operator and robot computers](docs/quickstart.md#operator-and-robot-computers) | The robot host's sourced ROS workspace or reviewed CAN/SDK setup. |
 | Review a physical joint1 trial | [Physical commissioning](docs/physical-commissioning.md) | A qualified operator, reviewed profile, existing stop state, supported arm/load, and independent cutoff. |
+| Run one attended joint1 agent trial | [Physical agent](docs/physical-agent.md) | Unreleased 0.5.0, separate deterministic qualification, explicit model credentials, and all operator acknowledgements. |
 | Evaluate optional model integrations | [Ecosystem and prerequisites](docs/ecosystem.md) | Compatible observations, actions, checkpoint, and separate qualification. |
 
 The package provides no remote-control transport, hosted service, pairing, or

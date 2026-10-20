@@ -45,7 +45,12 @@ While this package is **0.y.z**, its API is still experimental:
 Versioned releases are immutable. Do not replace an existing tag or published
 artifact. A tag is `vX.Y.Z`; Python package metadata uses `X.Y.Z`. Development
 changes can accumulate under an unreleased changelog entry until that version is
-deliberately tagged. Version 0.4.0 removes the previous optional network CLI and
+deliberately tagged. The branch artifact is **0.5.0, unreleased**. Its dedicated
+physical-agent executable and additive owner receipts require a minor increment.
+Install it from reviewed source or a newly built wheel, not the immutable
+0.4.0 wheel or plain PyPI. See [the operator path](physical-agent.md).
+
+Version 0.4.0 removes the previous optional network CLI and
 its extra, so this pre-1.0 public-interface removal uses a minor increment rather
 than a patch. The B601 adapters and their safety limits are unchanged. GitHub release assets and PyPI
 publication are separate: a public wheel can be installed directly before the
@@ -60,7 +65,7 @@ ruff format --check src tests scripts
 python -m mypy
 python -m pytest --cov
 python -m scripts.check_version
-python -m scripts.check_version --tag v0.4.0  # Use the version in pyproject.toml.
+python -m scripts.check_version --tag v0.5.0  # Validation only, not tag creation.
 python -m build
 python -m twine check dist/*
 ```

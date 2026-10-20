@@ -74,11 +74,11 @@ class FakeRosSession:
         self.closed = True
 
 
-def require_installed_packages():
+def require_installed_packages(expected_b601_version="0.4.0"):
     if not (3, 10) <= sys.version_info[:2] < (3, 13):
         raise AssertionError("Acceptance requires Python 3.10 through 3.12")
     for package, expected_version, module_name in (
-        ("inspect-robots-b601", "0.4.0", "inspect_robots_b601"),
+        ("inspect-robots-b601", expected_b601_version, "inspect_robots_b601"),
         ("inspect-robots", "0.60.0", "inspect_robots"),
         ("inspect-robots-agent", "0.28.0", "inspect_robots_agent"),
     ):
@@ -257,7 +257,8 @@ class AgentAcceptanceTests(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifacts-dir", type=Path, required=True)
+    parser.add_argument("--expected-b601-version", choices=("0.4.0", "0.5.0"), default="0.4.0")
     args = parser.parse_args()
-    require_installed_packages()
+    require_installed_packages(args.expected_b601_version)
     AgentAcceptanceTests.artifacts_dir = args.artifacts_dir.resolve()
     unittest.main(argv=[sys.argv[0]], verbosity=2)

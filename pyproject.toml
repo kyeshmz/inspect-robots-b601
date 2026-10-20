@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inspect-robots-b601"
-version = "0.4.0"
+version = "0.5.0"
 description = "Seeed B601-RS embodiments and measured-state benchmarks for Inspect Robots"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -41,6 +41,7 @@ b601_measured_goal = "inspect_robots_b601.benchmarks:MeasuredJointGoal"
 [project.scripts]
 b601-evaluate = "inspect_robots_b601.evaluate:main"
 b601-commission = "b601_hardware.direct:main"
+b601-physical-agent = "inspect_robots_b601.physical_agent:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

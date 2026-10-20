@@ -50,8 +50,11 @@ The runner rejects editable installs, wrong package origins, or versions other
 than B601 0.4.0, Inspect 0.60.0, and agent 0.28.0. It also checks NumPy below 2.
 For a branch wheel, run `python -m build --outdir "$RUN/dist"` from the checkout
 with the `dev` extra installed. Repeat in a second fresh environment, replacing
-the release URL with `"$RUN"/dist/*.whl`. Do not overwrite the public-wheel
-environment. Distribution CI performs this branch-wheel check automatically.
+the release URL with `"$RUN"/dist/*.whl`. Pass `--expected-b601-version 0.5.0`
+to `tests/test_agent.py` for this branch. Its default remains 0.4.0 for immutable
+release checks. Neither choice relaxes the installed-origin or exact pin guards.
+Do not overwrite the public-wheel environment. Distribution CI performs this
+branch-wheel check automatically.
 
 Both scenarios resolve the real `b601_ros`, `b601/joint1-nudge`, and `agent`
 registry entries. They keep the B601 adapter, agent tool selection and
@@ -180,3 +183,33 @@ policy from a user's global Inspect config.
 
 Follow [the separate operator procedure](physical-commissioning.md). It is not
 a pytest marker or CI job. Nothing automatically progresses to this stage.
+
+## Physical-agent software acceptance
+
+The unreleased 0.5.0 feature has a separate installed-wheel recipe. In a clean
+Python 3.10 through 3.12 environment, install the newly built wheel with its
+`agent`, `motorbridge`, and `test` extras. Do not use the public 0.4.0 wheel for
+this command. Then run:
+
+```bash
+python -I tests/packaging/test_physical_installed.py --artifacts-dir /your/scratch/physical-agent-evidence
+```
+
+The acceptance verifies installed origins and exact pins. It drives the actual
+help/check/rejection executable with external effects forbidden and checks
+unchanged fixture bytes. The runtime tests use the real installed agent,
+adapter, direct core, independent HOLD worker, evaluator, measured scorer,
+logs, and HTML viewer. External motor, ownership, and provider boundaries are
+fake. A local fake HTTP server verifies provider-child total-lifetime
+cancellation while consuming a slow body. No paid request, CAN, ROS, SDK
+activation, operational state creation, or actual-arm qualification occurs.
+
+The positive fake nudge measures 0.2015 rad from a 0.2-rad initial pose and
+scores 1. Done without motion scores 0. Fault cases include full-chunk and
+cumulative corridor violations, changing or expired evidence, retained or
+external stops, stale feedback, busy ownership, late/stalled provider replies,
+interrupts, budget exhaustion, and finalization failures after score 1.
+
+For a reusable build/doctor/drive/evidence recipe, read
+`.opencode/skills/verify-b601-physical-agent/SKILL.md`. Never execute the
+[operator procedure](physical-agent.md) as software verification.

@@ -50,11 +50,15 @@ def snapshot() -> dict[str, Any]:
     surfaces = {name: signature(factory) for name, factory in factories.items()}
     for name, factory in factories.items():
         if inspect.isclass(factory):
-            for method in ("reset", "step", "close", "bind", "act", "__call__"):
+            for method in ("reset", "step", "close", "bind", "act", "__call__", "abort"):
                 if hasattr(factory, method) and method != "__call__":
                     surfaces[f"{name}.{method}"] = signature(getattr(factory, method))
                 elif method == "__call__" and method in factory.__dict__:
                     surfaces[f"{name}.{method}"] = signature(factory.__call__)
+            for attribute in ("final_report", "cleanup_complete"):
+                member = getattr(factory, attribute, None)
+                if isinstance(member, property):
+                    surfaces[f"{name}.{attribute}"] = signature(member.fget)
     points = distribution("inspect-robots-b601").entry_points
     return {
         "schema_version": 1,

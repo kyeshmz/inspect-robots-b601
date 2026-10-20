@@ -123,6 +123,7 @@ class DirectSession:
         period: float = 0.02,
         existing_state_only: bool = False,
         active_timeout_s: float | None = None,
+        activation_guard: Callable[[tuple[float, ...]], None] | None = None,
     ) -> None:
         if active_timeout_s is not None and (
             not math.isfinite(active_timeout_s) or not 0 < active_timeout_s <= 30
@@ -147,6 +148,7 @@ class DirectSession:
         self._opened = self._closed = False
         self._existing_state_only = existing_state_only
         self._active_timeout_s = active_timeout_s
+        self._activation_guard = activation_guard
         self._active_deadline: float | None = None
         self._worker_close_failed = False
 
@@ -290,7 +292,7 @@ class DirectSession:
             try:
                 if self._active_timeout_s is not None:
                     self._active_deadline = self.clock() + self._active_timeout_s
-                self.core.activate()
+                self.core.activate(guard=self._activation_guard)
                 self._check()
                 if self.core.state != State.ACTIVE:
                     raise RuntimeError("Activation did not remain active")

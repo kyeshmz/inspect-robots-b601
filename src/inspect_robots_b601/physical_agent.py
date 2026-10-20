@@ -158,7 +158,23 @@ class _Trial(MotorbridgeB601Embodiment):
             self.state_dir,
             existing_state_only=True,
             active_timeout_s=_ACTIVE_SECONDS,
+            activation_guard=self._guard_activation,
         )
+
+    def _guard_activation(self, positions: tuple[float, ...]) -> None:
+        corridor = self.corridor
+        if corridor is None:
+            raise SafetyAbort("The fixed initial-pose trial corridor is required before activation")
+        initial = positions[0]
+        goal = initial + (corridor.goal - corridor.initial)
+        if (
+            abs(initial - corridor.initial) > _TOLERANCE
+            or not corridor.lower <= initial <= corridor.upper
+            or not corridor.lower <= goal <= corridor.upper
+        ):
+            raise SafetyAbort(
+                "Activation feedback drifted or makes the fixed trial goal infeasible"
+            )
 
     def _before_activate(self) -> None:
         assert self._session is not None

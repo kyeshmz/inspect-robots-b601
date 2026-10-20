@@ -358,12 +358,19 @@ class CommissioningCore:
                     self._fault("observe", exc)
                 raise
 
-    def activate(self, now: float | None = None) -> None:
+    def activate(
+        self,
+        now: float | None = None,
+        *,
+        guard: Callable[[tuple[float, ...]], None] | None = None,
+    ) -> None:
         with self._lock:
             if self._state != State.INACTIVE or self._stopped:
                 raise RuntimeError("activation requires inactive, recovered state")
             try:
                 feedback = self._read(now)
+                if guard is not None:
+                    guard(feedback.raw)
                 self._before_write(feedback)
                 self._axis_attempted = True
                 self._disable_ack = None
@@ -372,6 +379,8 @@ class CommissioningCore:
                 self._last_write_at = self._time()
                 prepared = feedback
                 feedback = self._read()
+                if guard is not None:
+                    guard(feedback.raw)
                 if any(abs(a - b) > MEASURED_TOLERANCE for a, b in zip(prepared.raw, feedback.raw)):
                     raise FeedbackError("pose changed during activation preparation")
                 self._before_write(feedback)

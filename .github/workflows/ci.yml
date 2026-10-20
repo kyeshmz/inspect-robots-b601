@@ -40,8 +40,16 @@ jobs:
           "$RUNNER_TEMP/wheel-check/bin/python" -m pip install dist/*.whl
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/wheel-check/bin/python" -I "$GITHUB_WORKSPACE/tests/packaging/test_installed.py"
+          "$RUNNER_TEMP/wheel-check/bin/python" -m pip install 'inspect-robots-agent==0.28.0'
+          "$RUNNER_TEMP/wheel-check/bin/python" -m pip check
+          "$RUNNER_TEMP/wheel-check/bin/python" -I "$GITHUB_WORKSPACE/tests/test_agent.py" --artifacts-dir "$GITHUB_WORKSPACE/logs/installed-agent"
           "$RUNNER_TEMP/wheel-check/bin/python" -m pip install 'mypy>=1.11,<2'
           "$RUNNER_TEMP/wheel-check/bin/python" -m mypy --config-file "$GITHUB_WORKSPACE/pyproject.toml" --follow-imports=silent "$GITHUB_WORKSPACE/tests/typing/contracts.py"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-agent-evidence
+          path: logs/installed-agent/
       - uses: actions/upload-artifact@v4
         with:
           name: distributions

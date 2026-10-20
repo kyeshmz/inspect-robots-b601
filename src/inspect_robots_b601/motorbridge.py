@@ -26,6 +26,7 @@ from inspect_robots import (
 from inspect_robots.errors import EmbodimentFault, SafetyAbort
 
 if TYPE_CHECKING:
+    from b601_hardware.core import ErrorReport
     from b601_hardware.direct import DirectSession
 
 
@@ -98,6 +99,7 @@ class MotorbridgeB601Embodiment(EmbodimentBase):
                     gripper="none",
                     frame="base",
                     dim_labels=("joint1",),
+                    max_step=(max_step,),
                 ),
             ),
             observation_space=ObservationSpace(
@@ -133,7 +135,7 @@ class MotorbridgeB601Embodiment(EmbodimentBase):
         self._instruction = scene.instruction
         try:
             if self._session is None:
-                from b601_hardware.direct import DirectSession, validate_tracking_report
+                from b601_hardware.direct import validate_tracking_report
 
                 if (
                     hashlib.sha256(self.profile_path.read_bytes()).hexdigest()
@@ -144,14 +146,27 @@ class MotorbridgeB601Embodiment(EmbodimentBase):
                     )
                 if self.activate_on_reset:
                     validate_tracking_report(self.tracking_report, self.profile_path)
-                self._session = DirectSession(self.profile, self.state_dir)
+                self._session = self._create_session()
                 self._session.open()
                 if self.activate_on_reset:
+                    self._before_activate()
                     self._session.activate()
             return self._observe()
         except BaseException as exc:
             self._faulted = True
             raise EmbodimentFault(f"Direct B601 reset failed: {exc}") from exc
+
+    def _create_session(self) -> DirectSession:
+        from b601_hardware.direct import DirectSession
+
+        return DirectSession(self.profile, self.state_dir)
+
+    def _before_activate(self) -> None:
+        from b601_hardware.direct import validate_tracking_report
+
+        if hashlib.sha256(self.profile_path.read_bytes()).hexdigest() != self.profile_sha256:
+            raise RuntimeError("Profile changed during open; activation refused")
+        validate_tracking_report(self.tracking_report, self.profile_path)
 
     def _observe(self) -> Observation:
         assert self._session is not None
@@ -211,5 +226,19 @@ class MotorbridgeB601Embodiment(EmbodimentBase):
 
     def close(self) -> None:
         if self._session is not None:
-            session, self._session = self._session, None
-            session.close()
+            self._session.close()
+
+    def abort(self, reason: str) -> None:
+        """Terminal trial failure through the existing stop and persistence owner."""
+        self._faulted = True
+        if self._session is not None:
+            self._session.stop(reason)
+
+    @property
+    def final_report(self) -> ErrorReport | None:
+        """Retain the session and its immutable receipt, even when close fails."""
+        return None if self._session is None else self._session.report
+
+    @property
+    def cleanup_complete(self) -> bool:
+        return self._session is not None and self._session.closed

@@ -121,7 +121,13 @@ class DirectSession:
         owner_factory: Callable[[], Owner] = claim_native_bus,
         clock: Callable[[], float] = time.monotonic,
         period: float = 0.02,
+        existing_state_only: bool = False,
+        active_timeout_s: float | None = None,
     ) -> None:
+        if active_timeout_s is not None and (
+            not math.isfinite(active_timeout_s) or not 0 < active_timeout_s <= 30
+        ):
+            raise ValueError("active_timeout_s must be positive and at most 30 seconds")
         if profile.get("test_only") and transport is None:
             raise ValueError(
                 "Test-only profiles require an injected fake transport; physical CAN is forbidden"
@@ -139,15 +145,36 @@ class DirectSession:
         self._failure: BaseException | None = None
         self._persisted: dict[str, Any] | None = None
         self._opened = self._closed = False
+        self._existing_state_only = existing_state_only
+        self._active_timeout_s = active_timeout_s
+        self._active_deadline: float | None = None
+
+    @property
+    def report(self) -> ErrorReport | None:
+        """Immutable owner-held report, including faults retained after close."""
+        with self._lock:
+            return None if self.core is None else self.core.report
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
 
     def open(self) -> DirectSession:
         if self._opened or self._closed:
             raise RuntimeError("Direct sessions are single-use")
         try:
+            if self.ledger is None and self._existing_state_only:
+                self.ledger = StopLedger(
+                    self.state_dir, self.profile["legacy_stop_latch"], existing_only=True
+                )
             self._owner = self.owner_factory()
             self.transport.open()
             if self.ledger is None:
-                self.ledger = StopLedger(self.state_dir, self.profile["legacy_stop_latch"])
+                self.ledger = StopLedger(
+                    self.state_dir,
+                    self.profile["legacy_stop_latch"],
+                    existing_only=self._existing_state_only,
+                )
             self.core = CommissioningCore(
                 self.transport,
                 [(joint["lower"], joint["upper"]) for joint in self.profile["joints"]],
@@ -186,6 +213,10 @@ class DirectSession:
         if self.ledger.stopped and not self.core.stop_latched:
             self.core.stop("durable or external stop latch is set")
             self._persist()
+        if self._active_deadline is not None and self.clock() >= self._active_deadline:
+            self.core.stop("physical agent active deadline expired")
+            self._persist()
+            raise TimeoutError("Physical agent active deadline expired")
 
     def _persist_after(self, primary: BaseException) -> None:
         try:
@@ -254,6 +285,8 @@ class DirectSession:
             if self.ledger.stopped or self.core.stop_latched:
                 raise RuntimeError("Stop is latched; explicit operator recovery required")
             try:
+                if self._active_timeout_s is not None:
+                    self._active_deadline = self.clock() + self._active_timeout_s
                 self.core.activate()
                 self._check()
                 if self.core.state != State.ACTIVE:

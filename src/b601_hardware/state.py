@@ -43,11 +43,82 @@ def private_write(path: Path, value: dict[str, Any] | bytes) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def existing_path(path: str | Path, *, directory: bool = False) -> Path:
+    """Reject symlinks before canonicalization and require an existing regular object."""
+    result = Path(path).absolute()
+    if any(part.is_symlink() for part in (result, *result.parents)):
+        raise RuntimeError(f"Refusing symlinked operational path: {result}")
+    mode = result.stat().st_mode
+    if not (stat.S_ISDIR(mode) if directory else stat.S_ISREG(mode)):
+        raise RuntimeError(f"Operational path has the wrong file type: {result}")
+    return result
+
+
+def _read_state(path: Path) -> dict[str, Any]:
+    value: dict[str, Any] = json.loads(existing_path(path).read_text())
+    if (
+        value.get("schema_version") != 1
+        or type(value.get("stopped")) is not bool
+        or not isinstance(value.get("acknowledged_legacy_sha256"), (str, type(None)))
+    ):
+        raise RuntimeError("Invalid commissioning stop state")
+    return value
+
+
+def _read_legacy(path: Path) -> tuple[bytes, str]:
+    existing_path(path)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise RuntimeError("Legacy stop evidence must be a regular file")
+        raw = stream.read(65537)
+    if len(raw) > 65536:
+        raise RuntimeError("Legacy stop evidence is unexpectedly large")
+    value = json.loads(raw)
+    when = value.get("last_stop_unix_s")
+    if (
+        value.get("schema_version") != 1
+        or value.get("latched") is not True
+        or type(when) not in (int, float)
+        or not math.isfinite(when)
+        or when < 0
+    ):
+        raise RuntimeError("Legacy stop evidence is invalid; activation remains inhibited")
+    return raw, hashlib.sha256(raw).hexdigest()
+
+
+def inspect_existing_stop_state(
+    state_dir: str | Path, legacy_latch_path: str | Path
+) -> dict[str, Any]:
+    """Read the actual ledger schema without creating or archiving any evidence."""
+    directory = existing_path(state_dir, directory=True)
+    state = _read_state(directory / "stop-state.json")
+    _, digest = _read_legacy(Path(legacy_latch_path))
+    return {
+        **state,
+        "stopped": state["stopped"] or state["acknowledged_legacy_sha256"] != digest,
+        "legacy_sha256": digest,
+        "legacy_stop_latch": str(legacy_latch_path),
+    }
+
+
 class StopLedger:
-    def __init__(self, state_dir: str | Path, legacy_latch_path: str | Path) -> None:
+    def __init__(
+        self,
+        state_dir: str | Path,
+        legacy_latch_path: str | Path,
+        *,
+        existing_only: bool = False,
+    ) -> None:
         self.directory = Path(state_dir)
         self.legacy_path = Path(legacy_latch_path)
         self.path = self.directory / "stop-state.json"
+        self._existing_only = existing_only
+        if existing_only:
+            inspect_existing_stop_state(self.directory, self.legacy_path)
+            self._state = _read_state(self.path)
+            _, self._observed_hash = self._legacy()
+            return
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         if self.directory.is_symlink() or self.path.is_symlink():
             raise RuntimeError("Stop state must use regular files in a real directory")
@@ -56,13 +127,7 @@ class StopLedger:
         if not evidence.exists():
             private_write(evidence, raw)
         if self.path.exists():
-            self._state = json.loads(self.path.read_text())
-            if (
-                self._state.get("schema_version") != 1
-                or type(self._state.get("stopped")) is not bool
-                or not isinstance(self._state.get("acknowledged_legacy_sha256"), (str, type(None)))
-            ):
-                raise RuntimeError("Invalid commissioning stop state")
+            self._state = _read_state(self.path)
         else:
             self._state = {
                 "schema_version": 1,
@@ -73,27 +138,14 @@ class StopLedger:
             private_write(self.path, self._state)
 
     def _legacy(self) -> tuple[bytes, str]:
-        fd = os.open(self.legacy_path, os.O_RDONLY | os.O_NOFOLLOW)
-        with os.fdopen(fd, "rb") as stream:
-            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-                raise RuntimeError("Legacy stop evidence must be a regular file")
-            raw = stream.read(65537)
-        if len(raw) > 65536:
-            raise RuntimeError("Legacy stop evidence is unexpectedly large")
-        value = json.loads(raw)
-        when = value.get("last_stop_unix_s")
-        if (
-            value.get("schema_version") != 1
-            or value.get("latched") is not True
-            or type(when) not in (int, float)
-            or not math.isfinite(when)
-            or when < 0
-        ):
-            raise RuntimeError("Legacy stop evidence is invalid; activation remains inhibited")
-        return raw, hashlib.sha256(raw).hexdigest()
+        return _read_legacy(self.legacy_path)
 
     @property
     def stopped(self) -> bool:
+        if self._existing_only:
+            current = inspect_existing_stop_state(self.directory, self.legacy_path)
+            if current["stopped"]:
+                self._state = {**self._state, "stopped": True}
         _, self._observed_hash = self._legacy()
         return bool(
             self._state["stopped"]
@@ -110,6 +162,9 @@ class StopLedger:
         }
 
     def _commit(self, value: dict[str, Any]) -> None:
+        if self._existing_only:
+            existing_path(self.directory, directory=True)
+            existing_path(self.path)
         event = self.directory / f"event-{time.time_ns()}.json"
         private_write(event, value)
         private_write(self.path, value)

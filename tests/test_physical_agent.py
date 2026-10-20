@@ -110,7 +110,9 @@ class QuantizedMotor(FakeMotor):
         self.positions[0] = round(0.2 + round((position - 0.2) / 0.00075) * 0.00075, 8)
 
 
-def fake_boundaries(monkeypatch, calls, *, on_open=None, on_request=None, motor=None):
+def fake_boundaries(
+    monkeypatch, calls, *, on_open=None, on_request=None, motor=None, provider_run=None
+):
     motor, owner = motor or QuantizedMotor(), FakeOwner()
     sessions, requests = [], []
     real_run = subprocess.run
@@ -145,6 +147,8 @@ def fake_boundaries(monkeypatch, calls, *, on_open=None, on_request=None, motor=
         if on_request:
             on_request(len(requests), motor, sessions[-1])
         assert len(requests) <= len(calls), "No corrective provider retry is allowed"
+        if provider_run is not None:
+            return provider_run(command, **kwargs)
         return subprocess.CompletedProcess(command, 0, reply(*calls[len(requests) - 1]), b"")
 
     monkeypatch.setattr(physical, "DirectSession", session)

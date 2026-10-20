@@ -201,6 +201,7 @@ runpy.run_path(sys.argv[0], run_name="__main__")
             "pytest",
             str(ROOT / "tests/test_physical_agent.py"),
             str(ROOT / "tests/test_physical_http.py"),
+            str(ROOT / "tests/test_physical_joined.py"),
             str(ROOT / "tests/test_physical_owners.py"),
             "-q",
             f"--basetemp={self.artifacts_dir / 'fake-tests'}",

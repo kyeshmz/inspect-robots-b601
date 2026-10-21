@@ -2,7 +2,9 @@
 
 import configparser
 import json
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -37,9 +39,13 @@ class FakeCamera:
 class DepthCamera(FakeCamera):
     depth = True
 
-    def __init__(self, distance=0.15):
+    def __init__(self, distance=0.15, backend="close-range"):
         super().__init__()
-        self.distance = distance
+        self.distance, self.backend, self.depth_backend = distance, backend, None
+
+    def start(self):
+        super().start()
+        self.depth_backend = self.backend
 
     def read_with_depth(self):
         depth = np.zeros((self.height, self.width), dtype=np.float64)
@@ -110,12 +116,12 @@ class EmbodimentTests(unittest.TestCase):
         self.patch.start()
         self.addCleanup(self.patch.stop)
 
-    def calibrate_wrist_camera(self):
+    def calibrate_wrist_camera(self, **extra):
         """The shipped profile has no unit calibration; jaw_range needs one."""
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         profile = json.loads(self.profile.read_text())
-        profile["wrist_camera"] = {"jaw_window_px": [300, 272, 345, 296], "jaw_tip_depth_m": 0.092}
+        profile["wrist_camera"] = {"jaw_window_px": [300, 272, 345, 296], "jaw_tip_depth_m": 0.092, **extra}
         self.profile = Path(directory.name) / "calibrated.json"
         self.profile.write_text(json.dumps(profile))
 
@@ -377,6 +383,51 @@ class EmbodimentTests(unittest.TestCase):
             observation = robot.reset(Scene(id="depth", instruction="look"))
         self.assertEqual(observation.extra["front_depth"].shape, (480, 640))
         np.testing.assert_allclose(observation.state["jaw_range"], [0.15, 0.058])
+
+    def test_profile_depth_backend_refuses_other_depth_before_the_bus_opens(self):
+        self.calibrate_wrist_camera(depth_backend="close-range")
+        sessions = []
+        self.use_session(lambda *args, **kwargs: sessions.append(args) or FakeSession(*args, **kwargs))
+        camera = DepthCamera(backend="hardware")
+        with patch("inspect_robots_b601.embodiment.parse_camera", return_value=camera):
+            robot = self.robot(camera="realsense+depth")
+            with self.assertRaisesRegex(EmbodimentFault, "needs close-range depth.*librealsense2-enhanced-depth"):
+                robot.reset(Scene(id="depth", instruction="look"))
+        self.assertEqual(sessions, [])
+        robot.close()
+        self.assertTrue(camera.closed)
+
+    def test_profile_depth_backend_runs_and_each_trial_records_its_depth(self):
+        self.calibrate_wrist_camera(depth_backend="close-range")
+        with patch("inspect_robots_b601.embodiment.parse_camera", return_value=DepthCamera()):
+            robot = self.robot(camera="realsense+depth")
+            robot.reset(Scene(id="depth", instruction="look"))
+            robot.close()
+        (record,) = [json.loads(line) for line in robot.trial_log.read_text().splitlines()]
+        self.assertEqual(record["depth_backend"], "close-range")
+
+    def test_profile_depth_backend_must_be_known_and_needs_a_depth_camera(self):
+        self.calibrate_wrist_camera(depth_backend="stereo")
+        with patch("inspect_robots_b601.embodiment.parse_camera", return_value=DepthCamera()):
+            with self.assertRaisesRegex(ValueError, "depth_backend must be one of close-range, hardware"):
+                self.robot(camera="realsense+depth")
+        # A colour-only camera has no depth to check.
+        with patch("inspect_robots_b601.embodiment.parse_camera", return_value=FakeCamera()):
+            self.assertIsNone(self.robot(camera="realsense").depth_backend)
+
+    def test_close_range_problem_names_what_is_missing(self):
+        from inspect_robots_b601.hardware import camera
+
+        def rs_depth(available):
+            backends = types.SimpleNamespace(has_depth_range=available)
+            return types.SimpleNamespace(discover_backends=lambda: backends)
+
+        with patch.dict(sys.modules, {"rs_depth": rs_depth(True)}):
+            self.assertIsNone(camera.close_range_problem())
+        with patch.dict(sys.modules, {"rs_depth": rs_depth(False)}):
+            self.assertEqual(camera.close_range_problem(), "close-range backend not installed")
+        with patch.dict(sys.modules, {"rs_depth": None}):
+            self.assertIn("rs_depth", camera.close_range_problem())
 
     def test_uncalibrated_depth_camera_has_depth_but_no_jaw_range(self):
         with patch("inspect_robots_b601.embodiment.parse_camera", return_value=DepthCamera(distance=0.15)):

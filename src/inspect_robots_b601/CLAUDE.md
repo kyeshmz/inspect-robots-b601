@@ -15,7 +15,7 @@ The package is `mypy --strict` clean and ships `py.typed`.
 | `hardware/state.py` | `StopLedger`: the durable stop latch, optionally bound to another controller's stop file. Every new state directory starts latched. |
 | `hardware/gravity.py` | Static gravity feed-forward and gripper-tip forward kinematics, vendored from Seeed's URDF. |
 | `hardware/motor_log.py`, `hardware/thermal.py` | JSONL motor/temperature log and the thermal model it records. |
-| `hardware/camera.py` | RealSense colour and depth reader. |
+| `hardware/camera.py` | RealSense colour and depth reader; uses the Enhanced Depth close-range improver (`rs_depth`) when installed, and reports which depth it started with. |
 | `hardware/__init__.py` | Shared types: `Profile`, `PathLike`, and the `Motor` / `MotorController` protocols describing the part of Motorbridge's untyped API the package uses. |
 | `defaults/` | The stock B601-RS profile and the `agent` command's Inspect defaults. |
 

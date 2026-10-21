@@ -25,7 +25,7 @@ from inspect_robots.errors import EmbodimentFault, SafetyAbort
 
 from .hardware import Profile
 from .hardware.bus import channel_name
-from .hardware.camera import Depth, Image, parse_camera
+from .hardware.camera import DEPTH_BACKENDS, Depth, Image, parse_camera
 from .hardware.gravity import gripper_tip
 from .hardware.session import MoveError
 
@@ -136,9 +136,13 @@ class B601Embodiment(EmbodimentBase):
         )
         # Depth comes from the wrist D405 (close-range improved where installed). The jaws themselves
         # are too dark to measure, so the profile's wrist_camera calibration records where their
-        # tips sit in the depth image; without it there is no jaw_range.
+        # tips sit in the depth image; without it there is no jaw_range. Its depth_backend names
+        # the depth the calibration was measured with, and a run refuses any other.
         self.depth = bool(self.camera is not None and getattr(self.camera, "depth", False))
         wrist = self.profile.get("wrist_camera") or {}
+        self.depth_backend: str | None = wrist.get("depth_backend") if self.depth else None
+        if self.depth_backend not in (None, *DEPTH_BACKENDS):
+            raise ValueError(f"wrist_camera.depth_backend must be one of {', '.join(DEPTH_BACKENDS)}")
         self.jaw_window: tuple[int, int, int, int] | None = None
         self.jaw_tip_depth: float | None = None
         if self.camera is not None and self.depth and wrist:
@@ -291,6 +295,7 @@ class B601Embodiment(EmbodimentBase):
                 if self.camera is not None:
                     # Start streaming before torque is on; nothing else may stall the hold loop.
                     self.camera.start()
+                    self._check_depth_backend()
                 session = ArmSession(self.profile, self.state_dir)
                 session.notify = self._say
                 self._session = session
@@ -312,6 +317,15 @@ class B601Embodiment(EmbodimentBase):
         except BaseException as exc:
             self._faulted = True
             raise EmbodimentFault(f"B601 reset failed: {exc}") from exc
+
+    def _check_depth_backend(self) -> None:
+        """Refuse, before the bus opens, a depth camera that started without the profile's depth."""
+        started = getattr(self.camera, "depth_backend", None)
+        if self.depth_backend is not None and started != self.depth_backend:
+            fix = (" Install the RealSense Enhanced Depth package (librealsense2-enhanced-depth)."
+                   if self.depth_backend == "close-range" else "")
+            raise RuntimeError(f"the profile's wrist_camera calibration needs {self.depth_backend} depth, "
+                               f"but the camera started with {started} depth.{fix}")
 
     def _start_trial(self) -> None:
         """Record the activation pose as the trial start, then walk the ready and startup moves."""
@@ -498,6 +512,7 @@ class B601Embodiment(EmbodimentBase):
             "startup": self.startup_arg,
             "ready": self.ready_arg,
             "camera": self.camera_arg,
+            "depth_backend": getattr(self.camera, "depth_backend", None),
             "profile_home_pose": self.profile.get("home_pose"),
             "torque_caps": [j.get("torque_cap_nm") for j in self.profile["joints"]]
                             + ([self.profile["gripper"].get("torque_cap_nm")]

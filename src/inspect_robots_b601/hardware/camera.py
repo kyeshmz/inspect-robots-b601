@@ -15,20 +15,38 @@ Depth = npt.NDArray[np.float64]  # height x width metres, 0 for no return
 # RealSense Enhanced Depth package (librealsense2-enhanced-depth .deb, NVIDIA Jetson only).
 # Used when installed; otherwise depth comes straight from the camera.
 ENHANCED_DEPTH_PATH = "/opt/librealsense2-enhanced-depth/python"
+# Where a depth camera's depth comes from: the Enhanced Depth close-range improver, or the camera alone.
+DEPTH_BACKENDS = ("close-range", "hardware")
+
+
+def _rs_depth() -> Any:
+    """The Enhanced Depth package's ``rs_depth`` module; raises when it or its close-range backend is missing."""
+    if ENHANCED_DEPTH_PATH not in sys.path:
+        sys.path.append(ENHANCED_DEPTH_PATH)
+    import rs_depth
+
+    if not rs_depth.discover_backends().has_depth_range:
+        raise ImportError("close-range backend not installed")
+    return rs_depth
+
+
+def close_range_problem() -> str | None:
+    """Why close-range depth is unavailable on this computer, or None when it is installed."""
+    try:
+        _rs_depth()
+    except Exception as error:
+        return str(error) or type(error).__name__
+    return None
 
 
 def _close_range_improver(profile: Any, rs: Any) -> tuple[Any, str | None]:
     """The close-range DepthRangeImprover for this stream, or (None, reason)."""
-    if ENHANCED_DEPTH_PATH not in sys.path:
-        sys.path.append(ENHANCED_DEPTH_PATH)
     try:
-        from rs_depth import Calibration, DepthRangeImprover, discover_backends
-        if not discover_backends().has_depth_range:
-            return None, "close-range backend not installed"
+        rs_depth = _rs_depth()
         left = profile.get_stream(rs.stream.infrared, 1).as_video_stream_profile()
         right = profile.get_stream(rs.stream.infrared, 2).as_video_stream_profile()
-        return DepthRangeImprover(Calibration.from_sdk(left.get_intrinsics(),
-                                                       left.get_extrinsics_to(right))), None
+        return rs_depth.DepthRangeImprover(rs_depth.Calibration.from_sdk(left.get_intrinsics(),
+                                                                         left.get_extrinsics_to(right))), None
     except Exception as error:
         return None, f"close-range depth unavailable: {error}"
 

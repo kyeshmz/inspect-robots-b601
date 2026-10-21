@@ -47,7 +47,9 @@ uv pip install "inspect-robots-b601[motorbridge,agent] @ git+https://github.com/
 - `motorbridge` → Motorbridge 0.5.6, the RobStride driver (Linux x86_64 or aarch64).
 - `agent` → `inspect-robots-agent`, the LLM agent policy.
 - Python 3.10–3.13. For the camera, install `pyrealsense2` from pip or, on a
-  Jetson, from your librealsense build.
+  Jetson, from your librealsense build. On a Jetson, the RealSense Enhanced Depth
+  package (`librealsense2-enhanced-depth`) improves close-range depth for
+  `jaw_range`; it is used whenever it is installed.
 
 From a checkout, `scripts/inspect-robots-b601 setup` creates `.inspect-venv` with
 the checkout installed in editable mode.
@@ -62,7 +64,8 @@ inspect-robots doctor --embodiment b601                    # the framework's own
 ```
 
 Preflight constructs the embodiment without opening CAN, runs Inspect Robots's
-conformance check, and checks that the motor runtime is installed. It does not
+conformance check, and checks that the motor runtime is installed, and so is
+Enhanced Depth when the profile's `wrist_camera.depth_backend` is `close-range`. It does not
 prove the bus or the motors are ready; the next section does.
 
 ## Bring up the arm (once)
@@ -89,7 +92,7 @@ Otherwise copy the profile, edit it, and pass `-E profile=...` or set `B601_PROF
 | `can_lock` | Optional. Lock file shared by every B601 session on this bus (default `/run/lock/b601-<channel>.lock`) |
 | `native_owner_lock` | Optional. Another controller's lock file, held too so the two never drive the motors together |
 | `legacy_stop_latch` | Optional. Another controller's stop file; any change to it re-latches the stop |
-| `wrist_camera` | Optional. Jaw calibration for the depth camera; without it observations carry no `jaw_range` |
+| `wrist_camera` | Optional. Jaw calibration for the depth camera; without it observations carry no `jaw_range`. Its `depth_backend` (`close-range` or `hardware`) names the depth it was measured with; a run whose camera starts with any other depth is refused before the bus opens |
 | `gravity_feedforward`, `joints`, `gripper` | B601-RS facts: limits, motor IDs, models, gains, torque caps. Change only after review |
 
 **3. Check, read, recover.** With the arm supported and a cutoff in reach:
@@ -152,7 +155,7 @@ policy. `--no-prompt` (or a run without a terminal) skips the confirmation.
 Observations carry `joint_pos` (7), `blocked` (one entry per arm joint: ±1 when a
 joint stalled against something in that direction), `tip` (gripper tip x, y, z in
 metres and pitch in degrees), and, with a depth camera and a calibrated profile,
-`jaw_range`. Each trial is appended to `logs/motorbridge-trials.jsonl` beside the
+`jaw_range`. Each trial, with the depth it used, is appended to `logs/motorbridge-trials.jsonl` beside the
 state directory, and each session writes a motor and temperature log to
 `logs/motor/`.
 

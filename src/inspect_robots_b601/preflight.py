@@ -2,8 +2,9 @@
 
 ``inspect-robots-b601-preflight`` constructs the embodiment from a profile (no CAN, no
 motors, no camera; only its declared ``.info``), runs Inspect Robots's conformance check,
-and checks that the motor runtime is installed. It prints the report and exits non-zero
-on any error.
+and checks that the motor runtime is installed, and so is the RealSense Enhanced Depth
+package when the profile's depth camera calibration needs close-range depth. It prints
+the report and exits non-zero on any error.
 
 A green preflight means the action space, semantics, state and cameras are declared
 correctly and Motorbridge is importable. It does not prove the bus or the motors are
@@ -22,6 +23,7 @@ from typing import Any
 from inspect_robots.conformance import ConformanceReport, check_embodiment, missing_runtime_requirements
 
 from inspect_robots_b601.embodiment import B601Embodiment
+from inspect_robots_b601.hardware.camera import close_range_problem
 
 
 @dataclass(frozen=True)
@@ -45,7 +47,13 @@ def build(profile: str = "", **kwargs: Any) -> B601Embodiment:
 def run_preflight(embodiment: B601Embodiment | None = None) -> PreflightReport:
     """Return the preflight report for ``embodiment`` (default: the stock profile)."""
     embodiment = embodiment if embodiment is not None else build()
-    return PreflightReport(check_embodiment(embodiment.info), missing_runtime_requirements(type(embodiment)))
+    missing = dict(missing_runtime_requirements(type(embodiment)))
+    if embodiment.depth_backend == "close-range":
+        problem = close_range_problem()
+        if problem is not None:
+            missing["rs_depth"] = (f"install the RealSense Enhanced Depth package (librealsense2-enhanced-depth); "
+                                   f"wrist_camera.depth_backend is close-range ({problem})")
+    return PreflightReport(check_embodiment(embodiment.info), missing)
 
 
 def _format_human(report: PreflightReport, *, dry_run: bool) -> str:

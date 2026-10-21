@@ -12,7 +12,7 @@ import math
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -20,7 +20,7 @@ from inspect_robots import (
     Action, ActionSemantics, Box, CameraSpec, EmbodimentBase, EmbodimentInfo, Observation,
     ObservationSpace, Scene, StateField, StateSpec, StepResult,
 )
-from inspect_robots.conformance import DeviceSlot
+from inspect_robots.conformance import DeviceSlot, OptionSlot
 from inspect_robots.errors import EmbodimentFault, SafetyAbort
 
 from .hardware import Profile
@@ -33,6 +33,13 @@ if TYPE_CHECKING:
     from .hardware.session import ArmSession
 
 Vector = npt.NDArray[np.float64]
+
+
+class OperatorConsole(Protocol):
+    """The part of Inspect's operator session this embodiment uses once connected."""
+
+    def gate(self, prompt: str, *, hint: str | None = None) -> None: ...
+    def write_line(self, text: str) -> None: ...
 
 # A stock B601-RS on can0: limits, motor IDs, gains and torque caps, with no unit calibration.
 DEFAULT_PROFILE = Path(__file__).with_name("defaults") / "b601-rs.json"
@@ -62,6 +69,16 @@ class B601Embodiment(EmbodimentBase):
     # The setup wizard probes SocketCAN interfaces for this slot and writes the answer to
     # [embodiment.args] channel, which replaces the profile's channel.
     DEVICE_SLOTS = (DeviceSlot(arg="channel", kind="can", label="B601-RS arm CAN channel"),)
+
+    # The wizard asks these as yes/no questions and writes the answers to [embodiment.args].
+    # All three must be yes before a run enables the motors; each defaults to no.
+    OPTION_SLOTS = (
+        OptionSlot(arg="allow_motion", label="Let runs move this arm (allow_motion)"),
+        OptionSlot(arg="operator_supported_arm",
+                   label="The arm and load are supported and a cutoff is in reach (operator_supported_arm)"),
+        OptionSlot(arg="activate_on_reset",
+                   label="Enable the motors when each trial starts (activate_on_reset; needs both above)"),
+    )
 
     def __init__(self, *, profile: str = "", channel: str = "", state_dir: str = ".hardware-state",
                  allow_motion: bool = False, activate_on_reset: bool = False,
@@ -217,6 +234,7 @@ class B601Embodiment(EmbodimentBase):
                   "No Cartesian IK or collision checking." + ready_docs + camera_docs),
         )
         self._session: ArmSession | None = None
+        self._operator: OperatorConsole | None = None
         self._instruction: str | None = None
         self._faulted = False
         self._blocked: Vector = np.zeros(6, dtype=np.float64)
@@ -236,36 +254,73 @@ class B601Embodiment(EmbodimentBase):
     def defer_operator_end(self) -> None:
         """Let Inspect own terminal input, so typed operator feedback reaches the policy."""
 
+    def connect_operator_session(self, session: OperatorConsole) -> None:
+        """Hand terminal ownership to Inspect's operator session for the rest of the run.
+
+        From here on status lines go through the session, and each trial waits for the
+        operator to confirm the arm is supported before the motors enable or move.
+        """
+        self._operator = session
+        if self.camera is not None:
+            self.camera.notify = self._say
+        if self._session is not None:
+            self._session.notify = self._say
+
+    def _say(self, text: str) -> None:
+        if self._operator is not None:
+            self._operator.write_line(text)
+        else:
+            print(text, flush=True)
+
+    def _gate(self, action: str) -> None:
+        if self._operator is not None:
+            self._operator.gate(
+                f"B601: arm and load supported, cutoff within reach? Press Enter to {action}.",
+                hint="the operator confirms each B601 trial at this terminal; --no-prompt skips it")
+
     def reset(self, scene: Scene, *, seed: int | None = None) -> Observation:
         if self._faulted:
             raise EmbodimentFault("B601 session faulted; explicit operator recovery required")
-        self._instruction = scene.instruction
-        self._blocked[:] = 0.0
         try:
+            self._record_trial()  # The previous trial, if any, ends here.
+            self._instruction = scene.instruction
+            self._blocked[:] = 0.0
+            self._trial_start = self._trial_started_at = self._trial_fault = None
             if self._session is None:
                 from .hardware.session import ArmSession
                 if self.camera is not None:
                     # Start streaming before torque is on; nothing else may stall the hold loop.
                     self.camera.start()
                 session = ArmSession(self.profile, self.state_dir)
+                session.notify = self._say
                 self._session = session
                 session.open()
                 if self.activate_on_reset:
+                    self._gate("enable the motors")
                     session.activate()
-                    if self._trial_start is None:
-                        self._trial_start = tuple(float(v) for v in session.observe())
-                        self._trial_started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-                    if self.ready:
-                        self._ready_move()
-                    if self.startup:
-                        self._startup_move()
+                    self._start_trial()
+            elif self.activate_on_reset:
+                # Every later trial starts like the first: back at the activation pose, confirmed.
+                self._arm().go_home()
+                self._gate("start the next trial")
+                self._start_trial()
             observation = self._observe()
             if self._trial_start is None:
                 self._trial_start = tuple(float(v) for v in observation.state["joint_pos"])
+                self._trial_started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             return observation
         except BaseException as exc:
             self._faulted = True
             raise EmbodimentFault(f"B601 reset failed: {exc}") from exc
+
+    def _start_trial(self) -> None:
+        """Record the activation pose as the trial start, then walk the ready and startup moves."""
+        self._trial_start = tuple(float(v) for v in self._arm().observe())
+        self._trial_started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if self.ready:
+            self._ready_move()
+        if self.startup:
+            self._startup_move()
 
     def _ready_move(self) -> None:
         """Walk the configured stages from the activation pose; a failure walks home and stops."""
@@ -461,7 +516,7 @@ class B601Embodiment(EmbodimentBase):
         if self._session is not None and self.hold_seconds > 0:
             session = self._session
             if getattr(session, "_enabled", False) and getattr(session, "_failure", None) is None:
-                print(f"holding final pose for {self.hold_seconds:g} s", flush=True)
+                self._say(f"holding final pose for {self.hold_seconds:g} s")
                 time.sleep(self.hold_seconds)
         if self.camera is not None:
             self.camera.close()

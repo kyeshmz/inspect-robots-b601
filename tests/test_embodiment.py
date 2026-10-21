@@ -56,6 +56,7 @@ class FakeSession:
         self.moves = []
         self.paths = []
         self.stopped = None
+        self.homes = 0
         self._home = tuple(self.positions)
 
     def open(self):
@@ -77,6 +78,11 @@ class FakeSession:
         self.positions = [p + (t - p) * self.follow for p, t in zip(self.positions, pose)]
         if self.follow < 0.5:
             raise RuntimeError("joint3 stalled")
+        return tuple(self.positions)
+
+    def go_home(self):
+        self.homes += 1
+        self.positions = list(self._home)
         return tuple(self.positions)
 
     def stop(self, reason):
@@ -201,6 +207,65 @@ class EmbodimentTests(unittest.TestCase):
         result = robot.step(Action(np.array([-0.02, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0])))
         self.assertEqual(robot._session.paths[-1], [-0.02, 0.02, 0, 0, 0, 0, 0])
         np.testing.assert_array_equal(result.observation.state["blocked"], [0] * 6)
+
+    def test_each_trial_starts_from_home_and_is_recorded(self):
+        robot = self.robot(ready="joint3=0.3")
+        robot.reset(Scene(id="one", instruction="first"))
+        session = robot._session
+        robot.step(Action(np.array([0.0, 0.0, 0.32, 0.0, 0.0, 0.0, 0.0])))
+        robot.reset(Scene(id="two", instruction="second"))
+        ready = [0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0]
+        self.assertEqual(session.homes, 1)
+        self.assertEqual(session.paths, [ready, [0.0, 0.0, 0.32, 0.0, 0.0, 0.0, 0.0], ready])
+        robot.close()
+        records = [json.loads(line) for line in robot.trial_log.read_text().splitlines()]
+        self.assertEqual([record["instruction"] for record in records], ["first", "second"])
+        self.assertEqual([record["start"] for record in records], [[0.0] * 7, [0.0] * 7])
+
+    def test_operator_session_confirms_each_trial_and_carries_status(self):
+        events = []
+
+        class Console:
+            def gate(self, prompt, *, hint=None):
+                events.append(("gate", prompt))
+
+            def write_line(self, text):
+                events.append(("line", text))
+
+        self.use_session(type("OrderedSession", (FakeSession,), {
+            "activate": lambda self: events.append(("activate",))}))
+        robot = self.robot(hold_seconds=1.0)
+        robot.connect_operator_session(Console())
+        robot.reset(Scene(id="one", instruction="first"))
+        robot.reset(Scene(id="two", instruction="second"))
+        self.assertEqual([event[0] for event in events], ["gate", "activate", "gate"])
+        self.assertIn("enable the motors", events[0][1])
+        self.assertIn("start the next trial", events[2][1])
+        self.assertEqual(robot._session.notify, robot._say)
+        robot._session._enabled = True
+        with patch("inspect_robots_b601.embodiment.time.sleep"):
+            robot.close()
+        self.assertIn(("line", "holding final pose for 1 s"), events)
+
+    def test_read_only_runs_never_gate_or_move(self):
+        events = []
+
+        class Console:
+            def gate(self, prompt, *, hint=None):
+                events.append(prompt)
+
+            def write_line(self, text):
+                events.append(text)
+
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        robot = B601Embodiment(state_dir=str(Path(directory.name) / "state"))
+        self.addCleanup(robot.close)
+        robot.connect_operator_session(Console())
+        robot.reset(Scene(id="one", instruction="look"))
+        robot.reset(Scene(id="two", instruction="look again"))
+        self.assertEqual(events, [])
+        self.assertEqual((robot._session.activated, robot._session.homes, robot._session.paths), (False, 0, []))
 
     def test_new_trial_clears_blocks(self):
         robot = self.robot(max_step=0.1)

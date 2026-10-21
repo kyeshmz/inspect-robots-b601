@@ -37,6 +37,12 @@ BusFactory = Callable[[Profile], Closable]
 GravityModel = Callable[[Sequence[float]], tuple[float, ...]]
 # (command at the start, target, duration s, start time) of a timed ramp.
 Goal = tuple[list[float], tuple[float, ...], float, float]
+# Where operator-facing status lines go: stdout, or an Inspect operator session.
+Notify = Callable[[str], None]
+
+
+def _print_line(text: str) -> None:
+    print(text, flush=True)
 
 
 MECH_POS = 0x7019
@@ -106,7 +112,8 @@ class ArmSession:
                  controller_factory: ControllerFactory = _default_controller, bus_factory: BusFactory = BusClaim,
                  clock: Callable[[], float] = time.monotonic, period: float = 0.02, tolerance: float = TOLERANCE,
                  gravity: GravityModel | None = None, home_wait: float | None = None, home_retry_s: float = 5.0,
-                 motor_log_dir: PathLike | None = None) -> None:
+                 motor_log_dir: PathLike | None = None, notify: Notify = _print_line) -> None:
+        self.notify = notify
         self.profile: Profile = profile if isinstance(profile, dict) else json.loads(Path(profile).read_text())
         self.state_dir = Path(state_dir)
         self.channel = channel_name(self.profile)
@@ -197,7 +204,7 @@ class ArmSession:
                 self.motor_log.event("session-open", measured_rad=list(self._positions),
                                      channel=self.channel)
             except Exception as error:
-                print(f"motor log unavailable: {error}", flush=True)
+                self.notify(f"motor log unavailable: {error}")
             return self
         except BaseException:
             self.close()
@@ -555,21 +562,21 @@ class ArmSession:
                 self.go_home()
                 break
             except KeyboardInterrupt:
-                print("operator interrupt: disabling motors before reaching home", flush=True)
+                self.notify("operator interrupt: disabling motors before reaching home")
                 break
             except (MoveError, RuntimeError) as error:
                 if not self._enabled:
                     break
                 if self._home_wait is not None and self._clock() - waited_since >= self._home_wait:
-                    print(f"cannot reach home ({error}); hold timeout reached, disabling", flush=True)
+                    self.notify(f"cannot reach home ({error}); hold timeout reached, disabling")
                     break
-                print(f"cannot reach home ({error}); holding the current pose. Clear the "
-                      f"obstruction; retrying in {self._home_retry_s:g} s. Ctrl-C disables "
-                      "the motors where they are.", flush=True)
+                self.notify(f"cannot reach home ({error}); holding the current pose. Clear the "
+                            f"obstruction; retrying in {self._home_retry_s:g} s. Ctrl-C disables "
+                            "the motors where they are.")
                 try:
                     time.sleep(self._home_retry_s)
                 except KeyboardInterrupt:
-                    print("operator interrupt: disabling motors before reaching home", flush=True)
+                    self.notify("operator interrupt: disabling motors before reaching home")
                     break
         self._fade_feedforward()
         with self._condition:

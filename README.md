@@ -46,7 +46,7 @@ uv pip install "inspect-robots-b601[motorbridge,agent] @ git+https://github.com/
 
 - `motorbridge` → Motorbridge 0.5.6, the RobStride driver (Linux x86_64 or aarch64).
 - `agent` → `inspect-robots-agent`, the LLM agent policy.
-- Python 3.10–3.12. For the camera, install `pyrealsense2` from pip or, on a
+- Python 3.10–3.13. For the camera, install `pyrealsense2` from pip or, on a
   Jetson, from your librealsense build.
 
 From a checkout, `scripts/inspect-robots-b601 setup` creates `.inspect-venv` with
@@ -77,9 +77,10 @@ sudo ip link set can0 up type can bitrate 1000000
 (`inspect_robots_b601/defaults/b601-rs.json`) describes a stock B601-RS on `can0`
 with no other controller on the bus: motor IDs 1–6 for the arm (RS06 on joints 1–3,
 RS00 on 4–6), an RS00 gripper on ID 7, joint limits, gains and torque caps. If only
-the interface differs, pass `-E channel=can1` or let `inspect-robots setup` fill it
-(the embodiment declares a `can` device slot). Otherwise copy the profile, edit it,
-and pass `-E profile=...` or set `B601_PROFILE`:
+the interface differs, pass `-E channel=can1` or let `inspect-robots setup` fill it:
+the wizard lists your SocketCAN interfaces for the embodiment's `can` device slot,
+and asks whether runs may move the arm (all three motion options default to no).
+Otherwise copy the profile, edit it, and pass `-E profile=...` or set `B601_PROFILE`:
 
 | Key | Meaning |
 | --- | --- |
@@ -140,12 +141,37 @@ with emb:  # walks home and disables the motors, even if the eval raises
 print(log.status)
 ```
 
+Every trial starts the same way: the first enables the motors at the measured
+pose, and each later one walks back to that pose first; then the `ready` stages run.
+When `inspect-robots` runs attended at a terminal, it hands the embodiment its
+operator console: before the motors enable, and before each later trial, you press
+Enter to confirm the arm is supported and the cutoff is in reach. The console also
+carries the embodiment's status lines and the end-of-episode keypress, whatever the
+policy. `--no-prompt` (or a run without a terminal) skips the confirmation.
+
 Observations carry `joint_pos` (7), `blocked` (one entry per arm joint: ±1 when a
 joint stalled against something in that direction), `tip` (gripper tip x, y, z in
 metres and pitch in degrees), and, with a depth camera and a calibrated profile,
 `jaw_range`. Each trial is appended to `logs/motorbridge-trials.jsonl` beside the
 state directory, and each session writes a motor and temperature log to
 `logs/motor/`.
+
+### Works with the rest of Inspect Robots
+
+`tests/test_ecosystem.py` drives the real `inspect-robots` CLI with fake motors, a
+fake depth camera and a fake model, next to every published adapter and task suite:
+
+- `run` and `eval-set` with the LLM `agent` policy, on ad-hoc instructions and on
+  every registered task (`cubepick-reach`, kitchenbench, stationerybench).
+- `inspect`, `inspect --transcript`, `summarize`, `view`, `video`, and Rerun
+  recording (`--rerun-save`, with `inspect-robots[rerun]`).
+- `doctor`, the `setup` wizard's CAN device slot and motion options, and the CLI's
+  device claim on the configured channel.
+
+The built-in `noop`, `random` and `scripted` policies belong to the `cubepick`
+simulator, and the VLA policies of other adapters (`lerobot`, `molmoact2`, `gr00t`,
+`openpi`, `openvla`, `go1`) expect their own arms' action spaces and cameras;
+Inspect's compatibility check refuses those pairings before anything moves.
 
 ### Operator commands
 
@@ -217,8 +243,10 @@ uv run mypy                                    # --strict over src/inspect_robot
 ```
 
 The suite needs no CAN, Motorbridge, camera or model: the motor controller, bus,
-clock and session are injected, and an end-to-end test runs a full `eval()` through
-the real session on fake motors. `tests/packaging/test_installed.py` checks a built
+clock and session are injected, an end-to-end test runs a full `eval()` through the
+real session on fake motors, and `tests/test_ecosystem.py` drives the Inspect CLI
+and its log tools (it skips what is not installed; install the task suites to
+cover their tasks). `tests/packaging/test_installed.py` checks a built
 wheel in a clean environment (`python -I tests/packaging/test_installed.py`). Set
 `REBOTARM_CONTROL_PY` to a checkout of Seeed's reBotArm_control_py to recheck the
 vendored gravity model against its URDF.

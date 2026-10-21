@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -42,6 +43,8 @@ class RealSenseCamera:
         self._pipeline: Any = None
         self._improver: Any = None
         self._depth_scale: float | None = None
+        # Where status lines go; the embodiment points this at its operator session.
+        self.notify: Callable[[str], None] = lambda text: print(text, flush=True)
 
     def start(self) -> RealSenseCamera:
         if self._pipeline is not None:
@@ -64,7 +67,7 @@ class RealSenseCamera:
             self._improver, reason = _close_range_improver(profile, rs)
             self.depth_backend = "close-range" if self._improver is not None else "hardware"
             if reason:
-                print(f"camera depth: {reason}; using hardware depth only", flush=True)
+                self.notify(f"camera depth: {reason}; using hardware depth only")
             self.read_with_depth()  # Warm up the improver while auto-exposure settles.
         else:
             self.read()  # Drop the first frame while auto-exposure settles.

@@ -47,6 +47,16 @@ class AdapterGuideTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             B601Embodiment(channel="../can0")
 
+    def test_setup_wizard_can_turn_motion_on_only_with_every_answer(self):
+        self.assertEqual([slot.arg for slot in B601Embodiment.OPTION_SLOTS],
+                         ["allow_motion", "operator_supported_arm", "activate_on_reset"])
+        self.assertTrue(all(slot.default is False for slot in B601Embodiment.OPTION_SLOTS))
+        with self.assertRaises(ValueError):
+            B601Embodiment(activate_on_reset=True)
+        with self.assertRaises(ValueError):
+            B601Embodiment(allow_motion=True, activate_on_reset=True)
+        B601Embodiment(allow_motion=True, operator_supported_arm=True, activate_on_reset=True)
+
     def test_context_manager_closes(self):
         with B601Embodiment() as robot:
             self.assertIsInstance(robot, B601Embodiment)

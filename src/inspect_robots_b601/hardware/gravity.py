@@ -42,7 +42,7 @@ import math
 from collections.abc import Iterable
 
 Vec = tuple[float, ...]  # a 3-vector
-Mat = tuple[Vec, ...]    # a 3x3 rotation, row-major
+Mat = tuple[Vec, ...]  # a 3x3 rotation, row-major
 
 URDF_SOURCE = "urdf/RS/urdf/ReBot_Arm_RS.urdf"  # within reBotArm_control_py 6415d43
 URDF_SHA256 = "3838ca8f9d586be22a89b33c7cbdd4abd43d4a92a2de377b294eef4c5bd7654d"
@@ -83,12 +83,16 @@ JOINT_TABLE = (
 
 # Vendored URDF data. Joints: origin xyz (m), origin rpy (rad), axis.
 _ARM_JOINTS = (
-    ((-0.00034283, -0.00098683, 0.075), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0)),   # joint1 base_link->link1
-    ((0.020343, 0.027237, 0.07), (-1.5708, 0.0, 0.0), (0.0, 0.0, 1.0)),       # joint2 link1->link2
-    ((-0.236, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0)),                  # joint3 link2->link3
-    ((0.228, -0.072746, 0.0045), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0)),          # joint4 link3->link4
-    ((0.087, -0.048, -0.03075), (-1.5708, 0.0, 0.0), (0.0, 0.0, -1.0)),       # joint5 link4->link5
-    ((0.0365, 0.0, 0.048), (0.0, 1.5708, 0.0), (0.0, 0.0, -1.0)),             # joint6 link5->link6
+    (
+        (-0.00034283, -0.00098683, 0.075),
+        (0.0, 0.0, 0.0),
+        (0.0, 0.0, -1.0),
+    ),  # joint1 base_link->link1
+    ((0.020343, 0.027237, 0.07), (-1.5708, 0.0, 0.0), (0.0, 0.0, 1.0)),  # joint2 link1->link2
+    ((-0.236, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0)),  # joint3 link2->link3
+    ((0.228, -0.072746, 0.0045), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0)),  # joint4 link3->link4
+    ((0.087, -0.048, -0.03075), (-1.5708, 0.0, 0.0), (0.0, 0.0, -1.0)),  # joint5 link4->link5
+    ((0.0365, 0.0, 0.048), (0.0, 1.5708, 0.0), (0.0, 0.0, -1.0)),  # joint6 link5->link6
 )
 # Links: mass (kg), centre of mass xyz (m) in the link frame. All inertial rpy
 # are 0. base_link (1.1774 kg) is fixed and loads no joint.
@@ -109,8 +113,9 @@ _GRIPPER_JOINT2 = ((-0.041939, 7.3385e-05, 0.0), (-1.5708, -1.5708, 0.0))
 
 
 def _matmul(a: Mat, b: Mat) -> Mat:
-    return tuple(tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3))
-                 for i in range(3))
+    return tuple(
+        tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)) for i in range(3)
+    )
 
 
 def _apply(r: Mat, v: Vec) -> Vec:
@@ -126,27 +131,36 @@ def _rpy(roll: float, pitch: float, yaw: float) -> Mat:
     cr, sr = math.cos(roll), math.sin(roll)
     cp, sp = math.cos(pitch), math.sin(pitch)
     cy, sy = math.cos(yaw), math.sin(yaw)
-    return ((cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr),
-            (sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr),
-            (-sp, cp * sr, cp * cr))
+    return (
+        (cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr),
+        (sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr),
+        (-sp, cp * sr, cp * cr),
+    )
 
 
 def _axis_angle(axis: Vec, angle: float) -> Mat:
     x, y, z = axis
     c, s = math.cos(angle), math.sin(angle)
     t = 1.0 - c
-    return ((t * x * x + c, t * x * y - s * z, t * x * z + s * y),
-            (t * x * y + s * z, t * y * y + c, t * y * z - s * x),
-            (t * x * z - s * y, t * y * z + s * x, t * z * z + c))
+    return (
+        (t * x * x + c, t * x * y - s * z, t * x * z + s * y),
+        (t * x * y + s * z, t * y * y + c, t * y * z - s * x),
+        (t * x * z - s * y, t * y * z + s * x, t * z * z + c),
+    )
 
 
 def _carried_by_link6() -> tuple[float, Vec]:
     """Lump link6, gripper_end and both fingers into one link6-frame body."""
     end_r = _rpy(*_J_GRIPPER_END[1])
     end_p = _J_GRIPPER_END[0]
-    bodies: list[tuple[float, Vec]] = [_LINK6, (_GRIPPER_END[0], _add(end_p, _apply(end_r, _GRIPPER_END[1])))]
-    for (xyz, rpy), (mass, com) in ((_GRIPPER_JOINT1, _GRIPPER_LEFT),
-                                    (_GRIPPER_JOINT2, _GRIPPER_RIGHT)):
+    bodies: list[tuple[float, Vec]] = [
+        _LINK6,
+        (_GRIPPER_END[0], _add(end_p, _apply(end_r, _GRIPPER_END[1]))),
+    ]
+    for (xyz, rpy), (mass, com) in (
+        (_GRIPPER_JOINT1, _GRIPPER_LEFT),
+        (_GRIPPER_JOINT2, _GRIPPER_RIGHT),
+    ):
         r = _matmul(end_r, _rpy(*rpy))
         p = _add(end_p, _apply(end_r, xyz))
         bodies.append((mass, _add(p, _apply(r, com))))
@@ -156,8 +170,11 @@ def _carried_by_link6() -> tuple[float, Vec]:
 
 # Per arm joint: origin xyz, origin rotation, axis, and the (mass, com) of the link it moves.
 _CHAIN: tuple[tuple[Vec, Mat, Vec, tuple[float, Vec]], ...] = tuple(
-    (xyz, _rpy(*rpy), axis, body) for (xyz, rpy, axis), body in zip(
-    _ARM_JOINTS, (_LINK1, _LINK2, _LINK3, _LINK4, _LINK5, _carried_by_link6())))
+    (xyz, _rpy(*rpy), axis, body)
+    for (xyz, rpy, axis), body in zip(
+        _ARM_JOINTS, (_LINK1, _LINK2, _LINK3, _LINK4, _LINK5, _carried_by_link6()), strict=False
+    )
+)
 
 
 def _six_numbers(values: Iterable[float], label: str) -> tuple[float, ...]:
@@ -191,7 +208,7 @@ def urdf_gravity(q_urdf: Iterable[float]) -> tuple[float, ...]:
     rotation: Mat = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
     position: Vec = (0.0, 0.0, 0.0)
     frames: list[tuple[Vec, Vec, float, Vec]] = []
-    for (xyz, origin, axis, (mass, com)), angle in zip(_CHAIN, angles):
+    for (xyz, origin, axis, (mass, com)), angle in zip(_CHAIN, angles, strict=False):
         position = _add(position, _apply(rotation, xyz))
         rotation = _matmul(rotation, origin)
         axis_world = _apply(rotation, axis)
@@ -221,12 +238,16 @@ def gripper_tip(q_raw: Iterable[float]) -> tuple[float, float, float, float]:
     angles = _six_numbers(q_raw, "q_raw")
     rotation: Mat = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
     position: Vec = (0.0, 0.0, 0.0)
-    for (xyz, origin, axis, _body), (_name, _model, sign, _scale, _limit), angle in zip(_CHAIN, JOINT_TABLE, angles):
+    for (xyz, origin, axis, _body), (_name, _model, sign, _scale, _limit), angle in zip(
+        _CHAIN, JOINT_TABLE, angles, strict=False
+    ):
         position = _add(position, _apply(rotation, xyz))
         rotation = _matmul(_matmul(rotation, origin), _axis_angle(axis, sign * angle))
     tip = _add(position, _apply(rotation, _J_GRIPPER_END[0]))
-    reach = tuple(t - w for t, w in zip(tip, position))
-    pitch = math.degrees(math.asin(max(-1.0, min(1.0, reach[2] / math.sqrt(sum(v * v for v in reach))))))
+    reach = tuple(t - w for t, w in zip(tip, position, strict=False))
+    pitch = math.degrees(
+        math.asin(max(-1.0, min(1.0, reach[2] / math.sqrt(sum(v * v for v in reach)))))
+    )
     return tip[0], tip[1], tip[2], pitch
 
 
@@ -238,6 +259,10 @@ def compensation_torques(q_raw: Iterable[float]) -> tuple[float, ...]:
     joint's guard limit. Raises ValueError unless given 6 finite numbers.
     """
     angles = _six_numbers(q_raw, "q_raw")
-    model = urdf_gravity(tuple(sign * q for (_, _, sign, _, _), q in zip(JOINT_TABLE, angles)))
-    return tuple(max(-limit, min(limit, sign * scale * tau))
-                 for (_, _, sign, scale, limit), tau in zip(JOINT_TABLE, model))
+    model = urdf_gravity(
+        tuple(sign * q for (_, _, sign, _, _), q in zip(JOINT_TABLE, angles, strict=False))
+    )
+    return tuple(
+        max(-limit, min(limit, sign * scale * tau))
+        for (_, _, sign, scale, limit), tau in zip(JOINT_TABLE, model, strict=False)
+    )

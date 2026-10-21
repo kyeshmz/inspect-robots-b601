@@ -9,8 +9,17 @@ from unittest.mock import patch
 
 from inspect_robots_b601.hardware import bus
 
-READY = {"channel": "can0", "type": 280, "flags": ["UP"], "bitrate": 1_000_000, "ctrlmode": [],
-         "can_state": "ERROR-ACTIVE", "driver": "gs_usb", "usb_vendor": "1d50", "usb_product": "606f"}
+READY = {
+    "channel": "can0",
+    "type": 280,
+    "flags": ["UP"],
+    "bitrate": 1_000_000,
+    "ctrlmode": [],
+    "can_state": "ERROR-ACTIVE",
+    "driver": "gs_usb",
+    "usb_vendor": "1d50",
+    "usb_product": "606f",
+}
 
 
 class ChannelTests(unittest.TestCase):
@@ -24,15 +33,21 @@ class ChannelTests(unittest.TestCase):
         self.assertEqual(bus.shared_lock_path({"channel": "can2"}).name, "b601-can2.lock")
         with patch.object(bus.os, "access", return_value=False):
             self.assertEqual(bus.shared_lock_path({"channel": "can2"}), Path("/tmp/b601-can2.lock"))
-        self.assertEqual(bus.shared_lock_path({"channel": "can2", "can_lock": "/run/lock/site.lock"}),
-                         Path("/run/lock/site.lock"))
+        self.assertEqual(
+            bus.shared_lock_path({"channel": "can2", "can_lock": "/run/lock/site.lock"}),
+            Path("/run/lock/site.lock"),
+        )
 
 
 class InterfaceTests(unittest.TestCase):
     def test_any_ready_adapter_passes_an_unpinned_profile(self):
         self.assertEqual(bus.interface_problems(READY, {"channel": "can0"}), [])
-        self.assertEqual(bus.interface_problems({**READY, "usb_vendor": None, "usb_product": None},
-                                                {"channel": "can0"}), [])
+        self.assertEqual(
+            bus.interface_problems(
+                {**READY, "usb_vendor": None, "usb_product": None}, {"channel": "can0"}
+            ),
+            [],
+        )
 
     def test_pins_are_enforced_only_when_present(self):
         pinned = {"channel": "can0", "driver": "peak_usb", "usb_vendor": "0c72"}
@@ -50,8 +65,11 @@ class LockTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        self.profile = {"channel": "can0", "can_lock": str(self.root / "shared.lock"),
-                        "native_owner_lock": str(self.root / "native.lock")}
+        self.profile = {
+            "channel": "can0",
+            "can_lock": str(self.root / "shared.lock"),
+            "native_owner_lock": str(self.root / "native.lock"),
+        }
 
     def held_elsewhere(self, path):
         fd = os.open(path, os.O_CREAT | os.O_RDWR)
@@ -86,7 +104,9 @@ class LockTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "can0 is not ready: interface is down"):
             self.claim(info={**READY, "flags": []})
         pinned = {**self.profile, "driver": "peak_usb"}
-        with self.assertRaisesRegex(RuntimeError, "driver is 'gs_usb' but the profile pins 'peak_usb'"):
+        with self.assertRaisesRegex(
+            RuntimeError, "driver is 'gs_usb' but the profile pins 'peak_usb'"
+        ):
             self.claim(pinned)
         self.claim().close()
 

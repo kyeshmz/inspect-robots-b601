@@ -15,12 +15,15 @@ Depth = npt.NDArray[np.float64]  # height x width metres, 0 for no return
 # RealSense Enhanced Depth package (librealsense2-enhanced-depth .deb, NVIDIA Jetson only).
 # Used when installed; otherwise depth comes straight from the camera.
 ENHANCED_DEPTH_PATH = "/opt/librealsense2-enhanced-depth/python"
-# Where a depth camera's depth comes from: the Enhanced Depth close-range improver, or the camera alone.
+# Where a depth camera's depth comes from:
+# the Enhanced Depth close-range improver, or the camera alone.
 DEPTH_BACKENDS = ("close-range", "hardware")
 
 
 def _rs_depth() -> Any:
-    """The Enhanced Depth package's ``rs_depth`` module; raises when it or its close-range backend is missing."""
+    """The Enhanced Depth package's ``rs_depth`` module;
+    raises when it or its close-range backend is missing.
+    """
     if ENHANCED_DEPTH_PATH not in sys.path:
         sys.path.append(ENHANCED_DEPTH_PATH)
     import rs_depth
@@ -45,14 +48,19 @@ def _close_range_improver(profile: Any, rs: Any) -> tuple[Any, str | None]:
         rs_depth = _rs_depth()
         left = profile.get_stream(rs.stream.infrared, 1).as_video_stream_profile()
         right = profile.get_stream(rs.stream.infrared, 2).as_video_stream_profile()
-        return rs_depth.DepthRangeImprover(rs_depth.Calibration.from_sdk(left.get_intrinsics(),
-                                                                         left.get_extrinsics_to(right))), None
+        return rs_depth.DepthRangeImprover(
+            rs_depth.Calibration.from_sdk(left.get_intrinsics(), left.get_extrinsics_to(right))
+        ), None
     except Exception as error:
         return None, f"close-range depth unavailable: {error}"
 
 
 class RealSenseCamera:
-    def __init__(self, width: int = 640, height: int = 480, fps: int = 30, depth: bool = False) -> None:
+    """A RealSense colour stream, optionally with metric depth; nothing opens until start()."""
+
+    def __init__(
+        self, width: int = 640, height: int = 480, fps: int = 30, depth: bool = False
+    ) -> None:
         self.width, self.height, self.fps = int(width), int(height), int(fps)
         if min(self.width, self.height) <= 0 or self.fps <= 0:
             raise ValueError("Camera dimensions and fps must be positive")
@@ -65,18 +73,22 @@ class RealSenseCamera:
         self.notify: Callable[[str], None] = lambda text: print(text, flush=True)
 
     def start(self) -> RealSenseCamera:
+        """Start streaming and discard one warm-up frame; does nothing if already started."""
         if self._pipeline is not None:
             return self
         import pyrealsense2 as rs
 
         config = rs.config()
-        config.enable_stream(rs.stream.color, self.width, self.height,
-                             rs.format.bgr8, self.fps)
+        config.enable_stream(rs.stream.color, self.width, self.height, rs.format.bgr8, self.fps)
         if self.depth:
             # The D405 takes colour from the left imager, so depth is already pixel-aligned with it.
             config.enable_stream(rs.stream.depth, self.width, self.height, rs.format.z16, self.fps)
-            config.enable_stream(rs.stream.infrared, 1, self.width, self.height, rs.format.y8, self.fps)
-            config.enable_stream(rs.stream.infrared, 2, self.width, self.height, rs.format.y8, self.fps)
+            config.enable_stream(
+                rs.stream.infrared, 1, self.width, self.height, rs.format.y8, self.fps
+            )
+            config.enable_stream(
+                rs.stream.infrared, 2, self.width, self.height, rs.format.y8, self.fps
+            )
         pipeline = rs.pipeline()
         profile = pipeline.start(config)
         self._pipeline = pipeline
@@ -104,17 +116,21 @@ class RealSenseCamera:
         return frames, image
 
     def read(self) -> Image:
+        """Wait for the next frame and return its RGB image."""
         return self._frames()[1]
 
     def read_with_depth(self) -> tuple[Image, Depth]:
-        """(RGB image, metric depth in metres with 0 for no return) from one synchronized frameset."""
+        """(RGB image, metric depth in metres with 0 for no return)
+        from one synchronized frameset.
+        """
         if not self.depth:
             raise RuntimeError("camera was not configured with depth")
         frames, image = self._frames()
         if self._depth_scale is None:
             raise RuntimeError("camera depth scale is unknown")
-        depth_mm = (np.asanyarray(frames.get_depth_frame().get_data()).astype(np.float64)
-                    * (self._depth_scale * 1000.0))
+        depth_mm = np.asanyarray(frames.get_depth_frame().get_data()).astype(np.float64) * (
+            self._depth_scale * 1000.0
+        )
         if self._improver is not None:
             left = np.asanyarray(frames.get_infrared_frame(1).get_data())
             right = np.asanyarray(frames.get_infrared_frame(2).get_data())
@@ -122,6 +138,7 @@ class RealSenseCamera:
         return image, np.asarray(depth_mm, dtype=np.float64) / 1000.0
 
     def close(self) -> None:
+        """Stop the pipeline if it is running; safe to call again."""
         pipeline, self._pipeline = self._pipeline, None
         self._improver = None
         if pipeline is not None:

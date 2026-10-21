@@ -16,6 +16,7 @@ import unittest
 from contextlib import redirect_stdout
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import patch
 
 import numpy as np
@@ -55,7 +56,7 @@ class FakeDepthCamera:
 class FakeModel(BaseHTTPRequestHandler):
     """An OpenAI Responses endpoint that replays CALLS, then keeps answering done."""
 
-    requests: list = []
+    requests: ClassVar[list] = []
 
     def log_message(self, *args):
         pass
@@ -64,12 +65,20 @@ class FakeModel(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.requests.append(body)
         name, arguments = CALLS[min(len(self.requests), len(CALLS)) - 1]
-        data = json.dumps({
-            "status": "completed",
-            "output": [{"type": "function_call", "call_id": f"call-{len(self.requests)}",
-                        "name": name, "arguments": json.dumps(arguments)}],
-            "usage": {"input_tokens": 1, "output_tokens": 1},
-        }).encode()
+        data = json.dumps(
+            {
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "function_call",
+                        "call_id": f"call-{len(self.requests)}",
+                        "name": name,
+                        "arguments": json.dumps(arguments),
+                    }
+                ],
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            }
+        ).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
@@ -95,23 +104,62 @@ class CliTests(unittest.TestCase):
         config.write_text("")
 
         def session(profile, state_dir):
-            return ArmSession(profile, state_dir, controller_factory=lambda channel: self.controller,
-                              bus_factory=lambda profile: Dummy(), period=0.005, home_wait=0.0)
+            return ArmSession(
+                profile,
+                state_dir,
+                controller_factory=lambda channel: self.controller,
+                bus_factory=lambda profile: Dummy(),
+                period=0.005,
+                home_wait=0.0,
+            )
 
         for patcher in (
             patch("inspect_robots_b601.hardware.session.ArmSession", session),
-            patch("inspect_robots_b601.embodiment.parse_camera", lambda value: FakeDepthCamera() if value else None),
-            patch.dict(os.environ, {"FAKE_MODEL_KEY": "not-a-key", "XDG_RUNTIME_DIR": str(self.root)}),
+            patch(
+                "inspect_robots_b601.embodiment.parse_camera",
+                lambda value: FakeDepthCamera() if value else None,
+            ),
+            patch.dict(
+                os.environ, {"FAKE_MODEL_KEY": "not-a-key", "XDG_RUNTIME_DIR": str(self.root)}
+            ),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.common = [
-            "--config", str(config), "--policy", "agent", "-P", "model=test/model",
-            "-P", f"base_url=http://127.0.0.1:{server.server_port}/v1", "-P", "wire=responses",
-            "-P", "api_key_env=FAKE_MODEL_KEY", "-P", "max_llm_calls=3", "--embodiment", "b601",
-            "-E", "channel=can9", "-E", "allow_motion=true", "-E", "activate_on_reset=true",
-            "-E", "operator_supported_arm=true", "-E", f"state_dir={state}", "-E", "camera=realsense+depth",
-            "--no-prompt", "--grader", "none", "--store-frames", "--log-dir", str(self.root / "logs"),
+            "--config",
+            str(config),
+            "--policy",
+            "agent",
+            "-P",
+            "model=test/model",
+            "-P",
+            f"base_url=http://127.0.0.1:{server.server_port}/v1",
+            "-P",
+            "wire=responses",
+            "-P",
+            "api_key_env=FAKE_MODEL_KEY",
+            "-P",
+            "max_llm_calls=3",
+            "--embodiment",
+            "b601",
+            "-E",
+            "channel=can9",
+            "-E",
+            "allow_motion=true",
+            "-E",
+            "activate_on_reset=true",
+            "-E",
+            "operator_supported_arm=true",
+            "-E",
+            f"state_dir={state}",
+            "-E",
+            "camera=realsense+depth",
+            "--no-prompt",
+            "--grader",
+            "none",
+            "--store-frames",
+            "--log-dir",
+            str(self.root / "logs"),
         ]
 
     def cli(self, *argv):
@@ -125,8 +173,15 @@ class CliTests(unittest.TestCase):
             self.assertAlmostEqual(motor.disabled_at, 0.0, places=6)
 
     def test_run_with_the_agent_and_every_log_tool(self):
-        code, output = self.cli("run", *self.common, "--no-rerun", "--max-steps", "5",
-                                "--instruction", "Raise joint3 a little and open the gripper, then finish")
+        code, output = self.cli(
+            "run",
+            *self.common,
+            "--no-rerun",
+            "--max-steps",
+            "5",
+            "--instruction",
+            "Raise joint3 a little and open the gripper, then finish",
+        )
         self.assertEqual(code, 0, output)
         self.assertIn("run status: completed", output)
         tools = {tool["name"]: tool for tool in FakeModel.requests[0]["tools"]}
@@ -158,8 +213,13 @@ class CliTests(unittest.TestCase):
         robot = B601Embodiment(camera="realsense+depth")
         for name in sorted(registered("task")):
             with self.subTest(task=name):
-                policy = resolve("policy", "agent", model="test/model", base_url="https://x.invalid/v1",
-                                 env={"OPENAI_API_KEY": "not-a-key"})
+                policy = resolve(
+                    "policy",
+                    "agent",
+                    model="test/model",
+                    base_url="https://x.invalid/v1",
+                    env={"OPENAI_API_KEY": "not-a-key"},
+                )
                 policy.bind(robot.info)
                 report = check_compatibility(policy, robot, resolve("task", name))
                 self.assertTrue(report.ok, [issue.message for issue in report.errors])
@@ -184,21 +244,36 @@ class SetupWizardTests(unittest.TestCase):
                     return "b601"
                 if "CAN channel" in prompt:
                     return "can1"
-                if any(arg in prompt for arg in ("allow_motion", "operator_supported_arm", "activate_on_reset")):
+                if any(
+                    arg in prompt
+                    for arg in ("allow_motion", "operator_supported_arm", "activate_on_reset")
+                ):
                     return "y"
                 return ""
 
             missing = root / "missing"
             env = {"XDG_CONFIG_HOME": str(root / "config"), "HOME": str(root)}
-            code = run_setup(env, input_fn=answer, out=io.StringIO(), interactive=True, sysfs_net=root / "net",
-                             by_id_dir=missing, by_path_dir=missing, sysfs_video=missing,
-                             serial_by_id_dir=missing)
+            code = run_setup(
+                env,
+                input_fn=answer,
+                out=io.StringIO(),
+                interactive=True,
+                sysfs_net=root / "net",
+                by_id_dir=missing,
+                by_path_dir=missing,
+                sysfs_video=missing,
+                serial_by_id_dir=missing,
+            )
             config = next((root / "config").rglob("config.ini")).read_text()
         self.assertEqual(code, 0)
         self.assertTrue(any("B601-RS arm CAN channel" in prompt for prompt in prompts), prompts)
         self.assertIn("embodiment = b601", config)
         self.assertIn("channel = can1", config)
-        for option in ("allow_motion = true", "operator_supported_arm = true", "activate_on_reset = true"):
+        for option in (
+            "allow_motion = true",
+            "operator_supported_arm = true",
+            "activate_on_reset = true",
+        ):
             self.assertIn(option, config)
 
 

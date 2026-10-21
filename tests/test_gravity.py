@@ -24,7 +24,9 @@ JOINT2_CONTACT_FREE_Q = 0.25
 
 
 def scaled(q):
-    return tuple(scale * tau for (_, _, _, scale, _), tau in zip(JOINT_TABLE, urdf_gravity(q)))
+    return tuple(
+        scale * tau for (_, _, _, scale, _), tau in zip(JOINT_TABLE, urdf_gravity(q), strict=False)
+    )
 
 
 class ReferencePoseTests(unittest.TestCase):
@@ -46,7 +48,7 @@ class ReferencePoseTests(unittest.TestCase):
     def test_compensation_is_scaled_model_in_identity_frame(self):
         self.assertEqual([sign for _, _, sign, _, _ in JOINT_TABLE], [1] * 6)
         for q, _ in self.REFERENCES:
-            for got, want in zip(compensation_torques(q), scaled(q)):
+            for got, want in zip(compensation_torques(q), scaled(q), strict=False):
                 self.assertAlmostEqual(got, want, places=12)
         # Folded rest (raw = URDF = 0): the motors must push up, i.e. positive.
         rest = compensation_torques([0] * 6)
@@ -56,7 +58,7 @@ class ReferencePoseTests(unittest.TestCase):
     def test_base_yaw_does_not_change_gravity(self):
         base = urdf_gravity((0, 0.7, 1.1, -0.3, 0.4, 0.2))
         turned = urdf_gravity((1.9, 0.7, 1.1, -0.3, 0.4, 0.2))
-        for a, b in zip(base, turned):
+        for a, b in zip(base, turned, strict=False):
             self.assertAlmostEqual(a, b, places=9)
         self.assertAlmostEqual(base[0], 0.0, places=9)
 
@@ -69,10 +71,17 @@ class VendoredUrdfTests(unittest.TestCase):
     def test_matches_potential_energy_gradient_of_the_urdf(self):
         """Every vendored number, checked as dU/dq of the URDF read afresh."""
         root = ET.parse(URDF).getroot()
-        numbers = lambda text: [float(v) for v in text.split()]
-        masses = {link.get("name"): (float(link.find("inertial/mass").get("value")),
-                                     numbers(link.find("inertial/origin").get("xyz")))
-                  for link in root.findall("link")}
+
+        def numbers(text):
+            return [float(v) for v in text.split()]
+
+        masses = {
+            link.get("name"): (
+                float(link.find("inertial/mass").get("value")),
+                numbers(link.find("inertial/origin").get("xyz")),
+            )
+            for link in root.findall("link")
+        }
         joints = {joint.find("child").get("link"): joint for joint in root.findall("joint")}
 
         def mul(a, b):
@@ -91,8 +100,9 @@ class VendoredUrdfTests(unittest.TestCase):
             joint = joints[link]
             rotation, position = world(joint.find("parent").get("link"), q)
             xyz = numbers(joint.find("origin").get("xyz"))
-            position = [p + sum(rotation[i][k] * xyz[k] for k in range(3))
-                        for i, p in enumerate(position)]
+            position = [
+                p + sum(rotation[i][k] * xyz[k] for k in range(3)) for i, p in enumerate(position)
+            ]
             roll, pitch, yaw = numbers(joint.find("origin").get("rpy"))
             rotation = mul(rotation, mul(turn(2, yaw), mul(turn(1, pitch), turn(0, roll))))
             if joint.get("type") == "revolute":
@@ -116,8 +126,8 @@ class VendoredUrdfTests(unittest.TestCase):
             for i in range(6):
                 step = [0.0] * 6
                 step[i] = 1e-6
-                plus = potential([a + b for a, b in zip(q, step)])
-                minus = potential([a - b for a, b in zip(q, step)])
+                plus = potential([a + b for a, b in zip(q, step, strict=False)])
+                minus = potential([a - b for a, b in zip(q, step, strict=False)])
                 self.assertAlmostEqual(model[i], (plus - minus) / 2e-6, delta=1e-5)
 
 
@@ -163,15 +173,18 @@ class Joint2SweepTests(unittest.TestCase):
             q = list(q6)
             q[1] = -q[1]
             return -JOINT_TABLE[1][3] * urdf_gravity(q)[1]
+
         residuals = self.residuals(flipped)
         self.assertGreater(self.rms(residuals[1]), 2.0)
         self.assertGreater(self.rms(residuals[-1]), 2.0)
 
     def test_holding_torque_profile(self):
         pose = list(self.samples[0]["q6"])
+
         def at(q2):
             pose[1] = q2
             return compensation_torques(pose)[1]
+
         self.assertAlmostEqual(at(0.3), 4.3, delta=0.3)
         self.assertGreater(at(0.7), 0.0)
         self.assertLess(at(0.85), 0.0)
@@ -185,14 +198,15 @@ class ClampTests(unittest.TestCase):
 
     def test_guards_are_per_motor_and_symmetric(self):
         self.assertEqual([limit for *_, limit in JOINT_TABLE], [12.0] * 3 + [4.0] * 3)
-        loud = tuple((name, model, sign, 100.0, limit)
-                     for name, model, sign, _, limit in JOINT_TABLE)
+        loud = tuple(
+            (name, model, sign, 100.0, limit) for name, model, sign, _, limit in JOINT_TABLE
+        )
         with patch.object(gravity, "JOINT_TABLE", loud):
             folded = compensation_torques((0, 0, 0, 0, 0, 0))
             forward = compensation_torques((0, 2.967, 0, 0, 0, 0))
         self.assertEqual(folded[1:4], (12.0, 12.0, 4.0))
         self.assertEqual(forward[1:4], (-12.0, -12.0, -4.0))
-        for tau, (*_, limit) in zip(folded + forward, JOINT_TABLE * 2):
+        for tau, (*_, limit) in zip(folded + forward, JOINT_TABLE * 2, strict=False):
             self.assertLessEqual(abs(tau), limit)
 
 
@@ -204,9 +218,18 @@ class InputTests(unittest.TestCase):
 
     def test_rejects_anything_else(self):
         bad = [
-            (0.0,) * 5, (0.0,) * 7, (), None, 0.0, "012345",
-            (0, 0, 0, 0, 0, "0"), (0, 0, 0, 0, 0, None), (0, 0, 0, 0, 0, True),
-            (0, 0, 0, 0, 0, math.nan), (0, 0, 0, 0, 0, math.inf), (0, 0, 0, 0, 0, -math.inf),
+            (0.0,) * 5,
+            (0.0,) * 7,
+            (),
+            None,
+            0.0,
+            "012345",
+            (0, 0, 0, 0, 0, "0"),
+            (0, 0, 0, 0, 0, None),
+            (0, 0, 0, 0, 0, True),
+            (0, 0, 0, 0, 0, math.nan),
+            (0, 0, 0, 0, 0, math.inf),
+            (0, 0, 0, 0, 0, -math.inf),
         ]
         for q in bad:
             with self.subTest(q=q), self.assertRaises(ValueError):
@@ -219,8 +242,12 @@ class PurityTests(unittest.TestCase):
     def test_imports_only_the_standard_library(self):
         # No numpy or URDF tooling: the vendored model must run in any install.
         tree = ast.parse(Path(gravity.__file__).read_text())
-        imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import)
-                    for alias in node.names}
+        imported = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
         imported |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
         self.assertEqual(imported, {"math", "__future__", "collections.abc"})
 

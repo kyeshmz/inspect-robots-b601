@@ -1,7 +1,7 @@
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 from inspect_robots_b601.hardware.state import StopLedger
 
@@ -21,28 +21,38 @@ class StopLedgerTests(unittest.TestCase):
         self.ledger.acknowledge({"fresh_feedback": True})
         self.assertFalse(StopLedger(self.root / "state", self.legacy).stopped)
         self.assertEqual(self.legacy.read_text(), self.original)
-        archived, = (self.root / "state").glob("legacy-*.json")
+        (archived,) = (self.root / "state").glob("legacy-*.json")
         self.assertEqual(archived.read_bytes(), self.legacy.read_bytes())
 
     def test_new_legacy_stop_invalidates_acknowledgement(self):
         self.ledger.acknowledge()
-        self.legacy.write_text(json.dumps({"schema_version": 1, "latched": True, "last_stop_unix_s": 2.0}))
+        self.legacy.write_text(
+            json.dumps({"schema_version": 1, "latched": True, "last_stop_unix_s": 2.0})
+        )
         self.assertTrue(self.ledger.stopped)
 
     def test_change_during_recovery_is_not_silently_acknowledged(self):
-        self.legacy.write_text(json.dumps({"schema_version": 1, "latched": True, "last_stop_unix_s": 2.0}))
+        self.legacy.write_text(
+            json.dumps({"schema_version": 1, "latched": True, "last_stop_unix_s": 2.0})
+        )
         with self.assertRaisesRegex(RuntimeError, "changed during recovery"):
             self.ledger.acknowledge()
 
     def test_local_stop_survives_restart(self):
         self.ledger.acknowledge()
-        self.ledger.stop("feedback lost", {"primary": "timeout", "cleanup": ["disable unconfirmed"]})
+        self.ledger.stop(
+            "feedback lost", {"primary": "timeout", "cleanup": ["disable unconfirmed"]}
+        )
         restored = StopLedger(self.root / "state", self.legacy)
         self.assertTrue(restored.stopped)
         self.assertEqual(restored.snapshot()["details"]["primary"], "timeout")
 
     def test_missing_or_invalid_legacy_file_is_fail_closed(self):
-        for value in ("{}", "not json", '{"schema_version":1,"latched":false,"last_stop_unix_s":0}'):
+        for value in (
+            "{}",
+            "not json",
+            '{"schema_version":1,"latched":false,"last_stop_unix_s":0}',
+        ):
             self.legacy.write_text(value)
             with self.assertRaises((ValueError, RuntimeError)):
                 _ = self.ledger.stopped

@@ -1,5 +1,6 @@
 """Hardware-free tests for the JSONL motor/temperature log."""
 
+import itertools
 import json
 import tempfile
 import unittest
@@ -8,8 +9,24 @@ from types import SimpleNamespace
 
 from inspect_robots_b601.hardware.motor_log import MotorLog
 
-JOINTS = [{"name": "joint2", "motor_id": 2, "model": "rs-06", "kp": 150.0, "kd": 10.0, "torque_cap_nm": 36.0},
-          {"name": "gripper", "motor_id": 7, "model": "rs-00", "kp": 50.0, "kd": 4.0, "torque_cap_nm": 1.0}]
+JOINTS = [
+    {
+        "name": "joint2",
+        "motor_id": 2,
+        "model": "rs-06",
+        "kp": 150.0,
+        "kd": 10.0,
+        "torque_cap_nm": 36.0,
+    },
+    {
+        "name": "gripper",
+        "motor_id": 7,
+        "model": "rs-00",
+        "kp": 50.0,
+        "kd": 4.0,
+        "torque_cap_nm": 1.0,
+    },
+]
 
 
 class StateMotor:
@@ -32,8 +49,13 @@ class MotorLogTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.path = Path(directory.name) / "motor" / "run.jsonl"
         self.now = 0
-        self.log = MotorLog(self.path, JOINTS, source="test", clock_ns=lambda: self.now,
-                            wall_ns=lambda: 1_700_000_000_000_000_000 + self.now)
+        self.log = MotorLog(
+            self.path,
+            JOINTS,
+            source="test",
+            clock_ns=lambda: self.now,
+            wall_ns=lambda: 1_700_000_000_000_000_000 + self.now,
+        )
 
     def records(self):
         self.log.close()
@@ -57,19 +79,30 @@ class MotorLogTests(unittest.TestCase):
             self.now = start + tick * 22_000_000
             self.log.sample(motors, measured=[0.0, 0.0], command=[0.0, 0.0])
         outputs = [r for r in self.records() if r["status"] == "actuator-output"]
-        gaps = [b["monotonic_ns"] - a["monotonic_ns"] for a, b in zip(outputs, outputs[1:])]
+        gaps = [b["monotonic_ns"] - a["monotonic_ns"] for a, b in itertools.pairwise(outputs)]
         self.assertGreaterEqual(min(gaps), 150_000_000)
         span = (outputs[-1]["monotonic_ns"] - outputs[0]["monotonic_ns"]) / 1e9
         self.assertAlmostEqual((len(outputs) - 1) / span, 5.0, delta=0.3)
 
     def test_actuator_output_carries_the_full_thermal_object(self):
         motors = [StateMotor(reply()), StateMotor(None)]
-        self.log.sample(motors, measured=[0.1, 0.5], command=[0.11, 0.5], feedforward=[2.5],
-                        caps=[36.0, 1.0])
+        self.log.sample(
+            motors, measured=[0.1, 0.5], command=[0.11, 0.5], feedforward=[2.5], caps=[36.0, 1.0]
+        )
         record = next(r for r in self.records() if r["status"] == "actuator-output")
         joint = record["thermal"]["joint2"]
-        for key in ("temp_c", "housing_c", "measured_c", "torque_nm", "allowed_torque_nm",
-                    "predicted_c", "latched", "feedback", "models", "cap_nm"):
+        for key in (
+            "temp_c",
+            "housing_c",
+            "measured_c",
+            "torque_nm",
+            "allowed_torque_nm",
+            "predicted_c",
+            "latched",
+            "feedback",
+            "models",
+            "cap_nm",
+        ):
             self.assertIn(key, joint)
         self.assertEqual(joint["measured_c"], 40.0)
         self.assertEqual(joint["feedback"], "ok")
@@ -80,7 +113,10 @@ class MotorLogTests(unittest.TestCase):
         self.assertEqual(record["target_rad"], [0.11, 0.5])
 
     def test_unreadable_or_non_finite_replies_never_break_the_log(self):
-        motors = [StateMotor(OSError("no reply")), StateMotor(reply(torq=float("nan"), t_mos=float("inf")))]
+        motors = [
+            StateMotor(OSError("no reply")),
+            StateMotor(reply(torq=float("nan"), t_mos=float("inf"))),
+        ]
         self.log.sample(motors, measured=[0.0, 0.0], command=[0.0, 0.0])
         record = next(r for r in self.records() if r["status"] == "actuator-output")
         self.assertEqual(record["thermal"]["joint2"]["feedback"], "missing")

@@ -31,8 +31,10 @@ class AdapterGuideTests(unittest.TestCase):
         self.assertIsNone(robot._session)
 
     def test_runtime_requirements_point_at_the_motorbridge_extra(self):
-        self.assertEqual(B601Embodiment.RUNTIME_REQUIREMENTS,
-                         {"motorbridge": "python -m pip install 'inspect-robots-b601[motorbridge]'"})
+        self.assertEqual(
+            B601Embodiment.RUNTIME_REQUIREMENTS,
+            {"motorbridge": "python -m pip install 'inspect-robots-b601[motorbridge]'"},
+        )
 
     def test_constructor_kwargs_are_scalars_for_the_cli(self):
         for parameter in inspect.signature(B601Embodiment).parameters.values():
@@ -48,8 +50,10 @@ class AdapterGuideTests(unittest.TestCase):
             B601Embodiment(channel="../can0")
 
     def test_setup_wizard_can_turn_motion_on_only_with_every_answer(self):
-        self.assertEqual([slot.arg for slot in B601Embodiment.OPTION_SLOTS],
-                         ["allow_motion", "operator_supported_arm", "activate_on_reset"])
+        self.assertEqual(
+            [slot.arg for slot in B601Embodiment.OPTION_SLOTS],
+            ["allow_motion", "operator_supported_arm", "activate_on_reset"],
+        )
         self.assertTrue(all(slot.default is False for slot in B601Embodiment.OPTION_SLOTS))
         with self.assertRaises(ValueError):
             B601Embodiment(activate_on_reset=True)

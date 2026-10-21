@@ -14,10 +14,9 @@ from inspect_robots import Action, Scene
 from inspect_robots.conformance import assert_embodiment_conformant
 from inspect_robots.errors import EmbodimentFault, SafetyAbort
 
-from inspect_robots_b601.hardware.session import MoveError
 from inspect_robots_b601.cli import AGENT_CONFIG
 from inspect_robots_b601.embodiment import DEFAULT_PROFILE, B601Embodiment
-
+from inspect_robots_b601.hardware.session import MoveError
 
 
 class FakeCamera:
@@ -76,12 +75,16 @@ class FakeSession:
 
     def move(self, target, duration):
         self.moves.append((list(target), duration))
-        self.positions = [p + (t - p) * self.follow for p, t in zip(self.positions, target)]
+        self.positions = [
+            p + (t - p) * self.follow for p, t in zip(self.positions, target, strict=False)
+        ]
         return tuple(self.positions)
 
     def go_to(self, pose, *, timeout=None, recovery=False):
         self.paths.append([round(float(v), 6) for v in pose])
-        self.positions = [p + (t - p) * self.follow for p, t in zip(self.positions, pose)]
+        self.positions = [
+            p + (t - p) * self.follow for p, t in zip(self.positions, pose, strict=False)
+        ]
         if self.follow < 0.5:
             raise RuntimeError("joint3 stalled")
         return tuple(self.positions)
@@ -121,7 +124,11 @@ class EmbodimentTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         profile = json.loads(self.profile.read_text())
-        profile["wrist_camera"] = {"jaw_window_px": [300, 272, 345, 296], "jaw_tip_depth_m": 0.092, **extra}
+        profile["wrist_camera"] = {
+            "jaw_window_px": [300, 272, 345, 296],
+            "jaw_tip_depth_m": 0.092,
+            **extra,
+        }
         self.profile = Path(directory.name) / "calibrated.json"
         self.profile.write_text(json.dumps(profile))
 
@@ -133,8 +140,13 @@ class EmbodimentTests(unittest.TestCase):
         kwargs.setdefault("max_step", 0.02)
         kwargs.setdefault("step_size", 0.01)
         robot = B601Embodiment(
-            profile=str(self.profile), allow_motion=True, activate_on_reset=True,
-            operator_supported_arm=True, control_hz=0.5, **kwargs)
+            profile=str(self.profile),
+            allow_motion=True,
+            activate_on_reset=True,
+            operator_supported_arm=True,
+            control_hz=0.5,
+            **kwargs,
+        )
         self.addCleanup(robot.close)
         return robot
 
@@ -142,8 +154,10 @@ class EmbodimentTests(unittest.TestCase):
         robot = self.robot()
         self.assertIsNone(robot._session)
         self.assertEqual(robot.info.action_space.shape, (7,))
-        self.assertEqual(tuple(robot.info.action_space.semantics.dim_labels),
-                         tuple(f"joint{i}" for i in range(1, 7)) + ("gripper",))
+        self.assertEqual(
+            tuple(robot.info.action_space.semantics.dim_labels),
+            (*(f"joint{i}" for i in range(1, 7)), "gripper"),
+        )
         assert_embodiment_conformant(robot.info)
         self.assertNotIn("camera is wrist-mounted", robot.info.docs)
 
@@ -152,8 +166,9 @@ class EmbodimentTests(unittest.TestCase):
         observation = robot.reset(Scene(id="test", instruction="move"))
         self.assertEqual(observation.state["joint_pos"].shape, (7,))
         result = robot.step(Action(np.array([0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])))
-        np.testing.assert_array_equal(result.observation.state["joint_pos"],
-                                      [0.01, 0, 0, 0, 0, 0, 0])
+        np.testing.assert_array_equal(
+            result.observation.state["joint_pos"], [0.01, 0, 0, 0, 0, 0, 0]
+        )
         self.assertEqual(robot._session.paths, [[0.01, 0, 0, 0, 0, 0, 0]])
         self.assertEqual(result.info, {})
         np.testing.assert_allclose(observation.state["tip"], [0.302, 0.0, 0.218, 0.0], atol=1e-3)
@@ -175,7 +190,9 @@ class EmbodimentTests(unittest.TestCase):
         robot.reset(Scene(id="test", instruction="move"))
         result = robot.step(Action(np.array([0.05, -1.0, 0.0, 0.0, 0.0, 0.0, 0.8])))
         np.testing.assert_allclose(robot._session.paths[-1], [0.02, -0.01, 0, 0, 0, 0, 0.8])
-        self.assertEqual(result.info["limited"], ["joint1 +0.050 -> +0.020", "joint2 -1.000 -> -0.010"])
+        self.assertEqual(
+            result.info["limited"], ["joint1 +0.050 -> +0.020", "joint2 -1.000 -> -0.010"]
+        )
         robot.step(Action(np.array([0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.8])))
         self.assertIsNone(robot._session.stopped)
 
@@ -192,6 +209,7 @@ class EmbodimentTests(unittest.TestCase):
             robot._session.positions = list(target)
             robot._session.positions[index] = stuck
             raise MoveError(f"joint{index + 1} stalled")
+
         robot._session.go_to = go_to
 
     def test_stall_holds_marks_the_joint_and_keeps_the_trial_going(self):
@@ -238,8 +256,13 @@ class EmbodimentTests(unittest.TestCase):
             def write_line(self, text):
                 events.append(("line", text))
 
-        self.use_session(type("OrderedSession", (FakeSession,), {
-            "activate": lambda self: events.append(("activate",))}))
+        self.use_session(
+            type(
+                "OrderedSession",
+                (FakeSession,),
+                {"activate": lambda self: events.append(("activate",))},
+            )
+        )
         robot = self.robot(hold_seconds=1.0)
         robot.connect_operator_session(Console())
         robot.reset(Scene(id="one", instruction="first"))
@@ -271,7 +294,9 @@ class EmbodimentTests(unittest.TestCase):
         robot.reset(Scene(id="one", instruction="look"))
         robot.reset(Scene(id="two", instruction="look again"))
         self.assertEqual(events, [])
-        self.assertEqual((robot._session.activated, robot._session.homes, robot._session.paths), (False, 0, []))
+        self.assertEqual(
+            (robot._session.activated, robot._session.homes, robot._session.paths), (False, 0, [])
+        )
 
     def test_new_trial_clears_blocks(self):
         robot = self.robot(max_step=0.1)
@@ -355,7 +380,8 @@ class EmbodimentTests(unittest.TestCase):
         robot = self.robot()
         robot.reset(Scene(id="test", instruction="move"))
         robot._session.go_to = lambda target, timeout=None: (_ for _ in ()).throw(
-            RuntimeError("joint2 stalled at +0.0000 rad, path target +0.0100 rad"))
+            RuntimeError("joint2 stalled at +0.0000 rad, path target +0.0100 rad")
+        )
         with self.assertRaises(RuntimeError):
             robot.step(Action(np.array([0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0])))
         self.assertEqual(robot._session.stopped, "Inspect B601 step failed")
@@ -365,8 +391,9 @@ class EmbodimentTests(unittest.TestCase):
         order = []
         camera = FakeCamera()
         camera.start = lambda: order.append("camera")
-        session = type("OrderedSession", (FakeSession,), {
-            "activate": lambda self: order.append("activate")})
+        session = type(
+            "OrderedSession", (FakeSession,), {"activate": lambda self: order.append("activate")}
+        )
         self.use_session(session)
         with patch("inspect_robots_b601.embodiment.parse_camera", return_value=camera):
             robot = self.robot(camera="realsense")
@@ -387,11 +414,15 @@ class EmbodimentTests(unittest.TestCase):
     def test_profile_depth_backend_refuses_other_depth_before_the_bus_opens(self):
         self.calibrate_wrist_camera(depth_backend="close-range")
         sessions = []
-        self.use_session(lambda *args, **kwargs: sessions.append(args) or FakeSession(*args, **kwargs))
+        self.use_session(
+            lambda *args, **kwargs: sessions.append(args) or FakeSession(*args, **kwargs)
+        )
         camera = DepthCamera(backend="hardware")
         with patch("inspect_robots_b601.embodiment.parse_camera", return_value=camera):
             robot = self.robot(camera="realsense+depth")
-            with self.assertRaisesRegex(EmbodimentFault, "needs close-range depth.*librealsense2-enhanced-depth"):
+            with self.assertRaisesRegex(
+                EmbodimentFault, "needs close-range depth.*librealsense2-enhanced-depth"
+            ):
                 robot.reset(Scene(id="depth", instruction="look"))
         self.assertEqual(sessions, [])
         robot.close()
@@ -408,9 +439,13 @@ class EmbodimentTests(unittest.TestCase):
 
     def test_profile_depth_backend_must_be_known_and_needs_a_depth_camera(self):
         self.calibrate_wrist_camera(depth_backend="stereo")
-        with patch("inspect_robots_b601.embodiment.parse_camera", return_value=DepthCamera()):
-            with self.assertRaisesRegex(ValueError, "depth_backend must be one of close-range, hardware"):
-                self.robot(camera="realsense+depth")
+        with (
+            patch("inspect_robots_b601.embodiment.parse_camera", return_value=DepthCamera()),
+            self.assertRaisesRegex(
+                ValueError, "depth_backend must be one of close-range, hardware"
+            ),
+        ):
+            self.robot(camera="realsense+depth")
         # A colour-only camera has no depth to check.
         with patch("inspect_robots_b601.embodiment.parse_camera", return_value=FakeCamera()):
             self.assertIsNone(self.robot(camera="realsense").depth_backend)
@@ -430,7 +465,9 @@ class EmbodimentTests(unittest.TestCase):
             self.assertIn("rs_depth", camera.close_range_problem())
 
     def test_uncalibrated_depth_camera_has_depth_but_no_jaw_range(self):
-        with patch("inspect_robots_b601.embodiment.parse_camera", return_value=DepthCamera(distance=0.15)):
+        with patch(
+            "inspect_robots_b601.embodiment.parse_camera", return_value=DepthCamera(distance=0.15)
+        ):
             robot = self.robot(camera="realsense+depth")
             assert_embodiment_conformant(robot.info)
             observation = robot.reset(Scene(id="depth", instruction="look"))
@@ -456,6 +493,7 @@ class EmbodimentTests(unittest.TestCase):
 
     def test_camera_strings_select_depth(self):
         from inspect_robots_b601.hardware.camera import parse_camera
+
         self.assertTrue(parse_camera("realsense+depth:640x480@30").depth)
         self.assertFalse(parse_camera("realsense:640x480@30").depth)
         self.assertIsNone(parse_camera(""))

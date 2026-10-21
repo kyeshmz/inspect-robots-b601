@@ -20,7 +20,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from inspect_robots.conformance import ConformanceReport, check_embodiment, missing_runtime_requirements
+from inspect_robots.conformance import (
+    ConformanceReport,
+    check_embodiment,
+    missing_runtime_requirements,
+)
 
 from inspect_robots_b601.embodiment import B601Embodiment
 from inspect_robots_b601.hardware.camera import close_range_problem
@@ -51,14 +55,18 @@ def run_preflight(embodiment: B601Embodiment | None = None) -> PreflightReport:
     if embodiment.depth_backend == "close-range":
         problem = close_range_problem()
         if problem is not None:
-            missing["rs_depth"] = (f"install the RealSense Enhanced Depth package (librealsense2-enhanced-depth); "
-                                   f"wrist_camera.depth_backend is close-range ({problem})")
+            missing["rs_depth"] = (
+                f"install the RealSense Enhanced Depth package (librealsense2-enhanced-depth); "
+                f"wrist_camera.depth_backend is close-range ({problem})"
+            )
     return PreflightReport(check_embodiment(embodiment.info), missing)
 
 
 def _format_human(report: PreflightReport, *, dry_run: bool) -> str:
     lines = [report.conformance.summary()]
-    lines += [f"  [error] missing {module}: {command}" for module, command in report.missing.items()]
+    lines += [
+        f"  [error] missing {module}: {command}" for module, command in report.missing.items()
+    ]
     lines.append("OK: ready for Inspect Robots." if report.ok else "NOT READY.")
     if dry_run:
         lines.append("(dry-run) No motion will be commanded.")
@@ -67,24 +75,38 @@ def _format_human(report: PreflightReport, *, dry_run: bool) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code (non-zero on any error)."""
-    parser = argparse.ArgumentParser(prog="inspect-robots-b601-preflight", description=__doc__.split("\n\n")[0])
-    parser.add_argument("--profile", default=os.environ.get("B601_PROFILE", ""),
-                        help="robot profile (default: $B601_PROFILE, else the bundled stock B601-RS)")
-    parser.add_argument("--camera", default="", help="camera to declare, as in -E camera=, e.g. realsense+depth")
+    parser = argparse.ArgumentParser(
+        prog="inspect-robots-b601-preflight", description=__doc__.split("\n\n")[0]
+    )
+    parser.add_argument(
+        "--profile",
+        default=os.environ.get("B601_PROFILE", ""),
+        help="robot profile (default: $B601_PROFILE, else the bundled stock B601-RS)",
+    )
+    parser.add_argument(
+        "--camera", default="", help="camera to declare, as in -E camera=, e.g. realsense+depth"
+    )
     parser.add_argument("--json", action="store_true", help="emit the report as JSON")
     parser.add_argument("--dry-run", action="store_true", help="affirm no motion will be commanded")
     args = parser.parse_args(argv)
 
     report = run_preflight(build(args.profile, camera=args.camera))
     if args.json:
-        print(json.dumps({
-            "ok": report.ok,
-            "embodiment": report.conformance.embodiment,
-            "issues": [{"severity": issue.severity, "code": issue.code, "message": issue.message}
-                       for issue in report.conformance.issues],
-            "missing": report.missing,
-            "dry_run": args.dry_run,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "ok": report.ok,
+                    "embodiment": report.conformance.embodiment,
+                    "issues": [
+                        {"severity": issue.severity, "code": issue.code, "message": issue.message}
+                        for issue in report.conformance.issues
+                    ],
+                    "missing": report.missing,
+                    "dry_run": args.dry_run,
+                },
+                indent=2,
+            )
+        )
     else:
         print(_format_human(report, dry_run=args.dry_run))
     return 0 if report.ok else 1

@@ -20,18 +20,32 @@ from inspect_robots_b601.cli import AGENT_CONFIG
 from inspect_robots_b601.embodiment import DEFAULT_PROFILE
 
 ROOT = Path(__file__).resolve().parents[1]
-READY = {"channel": "can3", "type": 280, "flags": ["UP"], "bitrate": 1_000_000, "ctrlmode": [],
-         "can_state": "ERROR-ACTIVE"}
+READY = {
+    "channel": "can3",
+    "type": 280,
+    "flags": ["UP"],
+    "bitrate": 1_000_000,
+    "ctrlmode": [],
+    "can_state": "ERROR-ACTIVE",
+}
 HANDLERS = ("check", "read", "recover", "hold", "probe", "pose", "gripper", "agent")
-CONFIRMED = {"recover": [], "hold": [], "probe": ["--joint", "0"], "pose": ["--stage", "joint3=0.1"],
-             "gripper": [], "agent": []}
+CONFIRMED = {
+    "recover": [],
+    "hold": [],
+    "probe": ["--joint", "0"],
+    "pose": ["--stage", "joint3=0.1"],
+    "gripper": [],
+    "agent": [],
+}
 
 
 class CommandTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
         for name in HANDLERS:
-            patcher = patch.object(cli, name, side_effect=lambda args, name=name: self.calls.append(name) or 0)
+            patcher = patch.object(
+                cli, name, side_effect=lambda args, name=name: self.calls.append(name) or 0
+            )
             patcher.start()
             self.addCleanup(patcher.stop)
 
@@ -55,18 +69,28 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(self.calls, ["check", "read"])
 
     def test_motion_bounds_are_refused_before_anything_opens(self):
-        for argv in (["probe", "--joint", "7"], ["probe", "--joint", "0", "--delta", "0.2"],
-                     ["hold", "--hold-seconds", "11"], ["hold", "--max-deviation", "0.6"],
-                     ["pose", "--stage", "joint9=0.1"], ["pose", "--stage", "joint1=1.3"],
-                     ["gripper", "--torque-cap", "2"], ["agent", "--max-llm-calls", "31"],
-                     ["agent", "--voice"]):
+        for argv in (
+            ["probe", "--joint", "7"],
+            ["probe", "--joint", "0", "--delta", "0.2"],
+            ["hold", "--hold-seconds", "11"],
+            ["hold", "--max-deviation", "0.6"],
+            ["pose", "--stage", "joint9=0.1"],
+            ["pose", "--stage", "joint1=1.3"],
+            ["gripper", "--torque-cap", "2"],
+            ["agent", "--max-llm-calls", "31"],
+            ["agent", "--voice"],
+        ):
             with self.subTest(argv=argv):
                 self.refused(*argv, "--confirm-supported-arm")
 
     def test_profile_and_state_defaults_follow_the_environment(self):
-        with patch.dict(os.environ, {"B601_PROFILE": "/site/arm.json", "B601_STATE_DIR": "/site/state"}):
+        with patch.dict(
+            os.environ, {"B601_PROFILE": "/site/arm.json", "B601_STATE_DIR": "/site/state"}
+        ):
             args = cli.build_parser().parse_args(["read"])
-        self.assertEqual((args.profile, args.state_dir), (Path("/site/arm.json"), Path("/site/state")))
+        self.assertEqual(
+            (args.profile, args.state_dir), (Path("/site/arm.json"), Path("/site/state"))
+        )
         with patch.dict(os.environ, {}, clear=True):
             args = cli.build_parser().parse_args(["pose", "--stage", "joint3=0.1"])
         self.assertEqual((args.profile, args.state_dir), (DEFAULT_PROFILE, Path(".hardware-state")))
@@ -75,12 +99,19 @@ class CommandTests(unittest.TestCase):
 class AgentCommandTests(unittest.TestCase):
     def test_agent_runs_the_b601_embodiment_with_every_motion_flag(self):
         with patch.object(cli, "_inspect", return_value=7) as run:
-            self.assertEqual(cli.main(["agent", "--confirm-supported-arm", "--hold-seconds", "2"]), 7)
+            self.assertEqual(
+                cli.main(["agent", "--confirm-supported-arm", "--hold-seconds", "2"]), 7
+            )
         args = inspect_cli.build_parser().parse_args(run.call_args.args[0])
         self.assertEqual((args.embodiment, args.policy, args.scorer), ("b601", "agent", "operator"))
         self.assertEqual(Path(args.config), AGENT_CONFIG.resolve())
-        for flag in ("allow_motion=true", "activate_on_reset=true", "operator_supported_arm=true",
-                     "hold_seconds=2.0", f"profile={DEFAULT_PROFILE.resolve()}"):
+        for flag in (
+            "allow_motion=true",
+            "activate_on_reset=true",
+            "operator_supported_arm=true",
+            "hold_seconds=2.0",
+            f"profile={DEFAULT_PROFILE.resolve()}",
+        ):
             self.assertIn(flag, args.embodiment_args)
         self.assertIsNone(args.max_action_delta)
 
@@ -95,27 +126,50 @@ class ReadOnlyCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory) / "robot.json"
             profile.write_text(json.dumps({"channel": "can3"}))
-            with (patch("inspect_robots_b601.hardware.bus.interface_metadata", return_value=info),
-                  patch("importlib.metadata.version", version),
-                  redirect_stdout(io.StringIO()) as output):
+            with (
+                patch("inspect_robots_b601.hardware.bus.interface_metadata", return_value=info),
+                patch("importlib.metadata.version", version),
+                redirect_stdout(io.StringIO()) as output,
+            ):
                 code = cli.main(["check", "--profile", str(profile)])
         return code, output.getvalue()
 
     def test_check_names_a_missing_motorbridge(self):
         code, output = self.check(READY, motorbridge=None)
         self.assertEqual(code, 1)
-        self.assertIn("motorbridge: not installed; python -m pip install 'inspect-robots-b601[motorbridge]'", output)
+        self.assertIn(
+            "motorbridge: not installed; python -m pip install 'inspect-robots-b601[motorbridge]'",
+            output,
+        )
 
     def test_check_names_what_to_fix(self):
-        code, output = self.check({"channel": "can3", "type": 280, "flags": [], "bitrate": 500_000,
-                                   "ctrlmode": [], "can_state": "STOPPED"})
+        code, output = self.check(
+            {
+                "channel": "can3",
+                "type": 280,
+                "flags": [],
+                "bitrate": 500_000,
+                "ctrlmode": [],
+                "can_state": "STOPPED",
+            }
+        )
         self.assertEqual(code, 1)
-        self.assertIn("can3: interface is down (sudo ip link set can3 up type can bitrate 1000000)", output)
+        self.assertIn(
+            "can3: interface is down (sudo ip link set can3 up type can bitrate 1000000)", output
+        )
         self.assertIn("bitrate is 500000", output)
 
     def test_check_accepts_a_ready_bus(self):
-        code, output = self.check({"channel": "can3", "type": 280, "flags": ["UP"], "bitrate": 1_000_000,
-                                   "ctrlmode": [], "can_state": "ERROR-ACTIVE"})
+        code, output = self.check(
+            {
+                "channel": "can3",
+                "type": 280,
+                "flags": ["UP"],
+                "bitrate": 1_000_000,
+                "ctrlmode": [],
+                "can_state": "ERROR-ACTIVE",
+            }
+        )
         self.assertEqual(code, 0, output)
         self.assertIn("can3: ready", output)
 
@@ -136,7 +190,9 @@ class LauncherTests(unittest.TestCase):
         executable.write_text(
             f"#!{sys.executable}\nimport json, os, sys\n"
             f"with open({str(self.calls)!r}, 'a') as log:\n"
-            "    log.write(json.dumps([os.getcwd(), os.environ.get('B601_STATE_DIR'), *sys.argv[1:]]) + '\\n')\n")
+            "    log.write(json.dumps([os.getcwd(), os.environ.get('B601_STATE_DIR'), "
+            "*sys.argv[1:]]) + '\\n')\n"
+        )
         executable.chmod(0o755)
 
     def run_script(self, *args):
@@ -162,13 +218,17 @@ class LauncherTests(unittest.TestCase):
         (self.root / ".env").write_text("B601_STATE_DIR=/site/state\n")
         result = self.run_script("pose", "--stage", "joint3=0.1 extra")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.logged(), [[str(self.root), "/site/state", "pose", "--stage", "joint3=0.1 extra"]])
+        self.assertEqual(
+            self.logged(), [[str(self.root), "/site/state", "pose", "--stage", "joint3=0.1 extra"]]
+        )
 
     def test_setup_installs_the_checkout_with_its_extras(self):
         self.fake("python")
         result = self.run_script("setup")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(self.logged()[-1][-1].endswith("[motorbridge,agent,dev]"), self.logged()[-1])
+        self.assertTrue(
+            self.logged()[-1][-1].endswith("[motorbridge,agent,dev]"), self.logged()[-1]
+        )
         self.assertEqual(self.run_script("setup", "--voice").returncode, 2)
 
     def test_preflight_runs_the_installed_preflight(self):

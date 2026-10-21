@@ -63,10 +63,12 @@ def _interrupt_on_signals() -> None:
 
 def _inspect(command: list[str]) -> int:
     from inspect_robots.cli import main as inspect_main
+
     return inspect_main(command)
 
 
 # --- no motion -----------------------------------------------------------------------------------
+
 
 def check(args: argparse.Namespace) -> int:
     """Check the profile's CAN interface and the Motorbridge install without opening either."""
@@ -90,7 +92,9 @@ def check(args: argparse.Namespace) -> int:
     try:
         print(f"motorbridge: {version('motorbridge')} installed")
     except PackageNotFoundError:
-        print("motorbridge: not installed; python -m pip install 'inspect-robots-b601[motorbridge]'")
+        print(
+            "motorbridge: not installed; python -m pip install 'inspect-robots-b601[motorbridge]'"
+        )
         ready = False
     if ready:
         print(f"{channel}: ready; sessions will lock {shared_lock_path(profile)}")
@@ -123,9 +127,13 @@ def recover(args: argparse.Namespace) -> int:
 
 # --- motion (enables every configured motor) -----------------------------------------------------
 
+
 def _session(args: argparse.Namespace, profile: Profile | None = None, **kwargs: Any) -> ArmSession:
     from .hardware.session import ArmSession
-    return ArmSession(profile if profile is not None else _load(args.profile), args.state_dir, **kwargs)
+
+    return ArmSession(
+        profile if profile is not None else _load(args.profile), args.state_dir, **kwargs
+    )
 
 
 def hold(args: argparse.Namespace) -> int:
@@ -142,9 +150,13 @@ def hold(args: argparse.Namespace) -> int:
         while time.monotonic() < deadline:
             time.sleep(0.25)
             current = session.observe()
-            deviation = max(deviation, max(abs(a - b) for a, b in zip(current, start)))
+            deviation = max(
+                deviation, max(abs(a - b) for a, b in zip(current, start, strict=False))
+            )
             if deviation > args.max_deviation:
-                raise RuntimeError(f"hold deviation {deviation:.6f} rad exceeds {args.max_deviation} rad")
+                raise RuntimeError(
+                    f"hold deviation {deviation:.6f} rad exceeds {args.max_deviation} rad"
+                )
         report.update(success=True, positions=list(current), max_hold_deviation=deviation)
     except BaseException as error:
         report["primary"] = _error(error)
@@ -164,8 +176,14 @@ def probe(args: argparse.Namespace) -> int:
         target = list(before)
         target[args.joint] += args.delta
         after = session.move(target, args.duration)
-        report.update(success=True, joint=session.joints[args.joint]["name"], before=before,
-                      target=target, after=after, measured_delta=after[args.joint] - before[args.joint])
+        report.update(
+            success=True,
+            joint=session.joints[args.joint]["name"],
+            before=before,
+            target=target,
+            after=after,
+            measured_delta=after[args.joint] - before[args.joint],
+        )
     except BaseException as error:
         report["primary"] = _error(error)
     finally:
@@ -192,6 +210,7 @@ def pose(args: argparse.Namespace) -> int:
     camera = None
     if not args.no_camera:
         from .hardware.camera import RealSenseCamera
+
         camera = RealSenseCamera()
     profile = _load(args.profile)
     if args.gravity != "profile":
@@ -213,12 +232,20 @@ def pose(args: argparse.Namespace) -> int:
             for name, offset in offsets.items():
                 target[AXES.index(name)] = home[AXES.index(name)] + offset
             print(f"stage {number}: {offsets}", flush=True)
-            measured = session.go_to(target, timeout=max(abs(a - b) for a, b in zip(target, home)) / 0.05 + 15.0)
-            entry: dict[str, Any] = {"offsets": offsets, "pose": target, "measured": list(measured),
-                     "lag": [round(a - b, 4) for a, b in zip(target, measured)],
-                     "max_send_gap_s": round(session.max_send_gap, 4)}
+            measured = session.go_to(
+                target,
+                timeout=max(abs(a - b) for a, b in zip(target, home, strict=False)) / 0.05 + 15.0,
+            )
+            entry: dict[str, Any] = {
+                "offsets": offsets,
+                "pose": target,
+                "measured": list(measured),
+                "lag": [round(a - b, 4) for a, b in zip(target, measured, strict=False)],
+                "max_send_gap_s": round(session.max_send_gap, 4),
+            }
             if camera is not None:
                 from PIL import Image
+
                 image = args.out / f"stage-{number}.jpg"
                 Image.fromarray(camera.read()).save(image, quality=90)
                 entry["image"] = str(image)
@@ -257,6 +284,7 @@ def gripper(args: argparse.Namespace) -> int:
     try:
         controller = _default_controller(channel_name(profile))
         from motorbridge import Mode
+
         motor = controller.add_robstride_motor(config["motor_id"], 0xFD, config["model"])
         initial = motor.robstride_get_param_f32(MECH_POS)
         report["initial"] = initial
@@ -271,7 +299,9 @@ def gripper(args: argparse.Namespace) -> int:
         target = initial + args.delta
         started = time.monotonic()
         while (elapsed := time.monotonic() - started) < args.duration:
-            motor.send_mit(initial + (target - initial) * (elapsed / args.duration), 0.0, args.kp, args.kd, 0.0)
+            motor.send_mit(
+                initial + (target - initial) * (elapsed / args.duration), 0.0, args.kp, args.kd, 0.0
+            )
             time.sleep(0.02)
         motor.send_mit(target, 0.0, args.kp, args.kd, 0.0)
         time.sleep(0.2)
@@ -297,16 +327,37 @@ def agent(args: argparse.Namespace) -> int:
     """Run Inspect's agent policy on every axis through the b601 embodiment."""
     _interrupt_on_signals()
     command = [
-        "run", "--config", str(args.inspect_config.resolve()), "--embodiment", "b601", "--policy", "agent",
-        "-E", f"profile={args.profile.resolve()}", "-E", f"state_dir={args.state_dir.resolve()}",
-        "-E", "allow_motion=true", "-E", "activate_on_reset=true", "-E", "operator_supported_arm=true",
-        "-E", f"ready={args.ready}",
-        "-P", f"max_llm_calls={args.max_llm_calls}",
-        "--instruction", args.instruction, "--max-steps", str(args.max_steps),
+        "run",
+        "--config",
+        str(args.inspect_config.resolve()),
+        "--embodiment",
+        "b601",
+        "--policy",
+        "agent",
+        "-E",
+        f"profile={args.profile.resolve()}",
+        "-E",
+        f"state_dir={args.state_dir.resolve()}",
+        "-E",
+        "allow_motion=true",
+        "-E",
+        "activate_on_reset=true",
+        "-E",
+        "operator_supported_arm=true",
+        "-E",
+        f"ready={args.ready}",
+        "-P",
+        f"max_llm_calls={args.max_llm_calls}",
+        "--instruction",
+        args.instruction,
+        "--max-steps",
+        str(args.max_steps),
         # The real arm never reports a success termination, so a person judges each trial.
         # The delta limiter uses the embodiment's declared per-step max_step.
-        "--scorer", "operator",
-        "--log-dir", str(args.log_dir or Path("logs") / f"b601-agent-{_stamp()}"),
+        "--scorer",
+        "operator",
+        "--log-dir",
+        str(args.log_dir or Path("logs") / f"b601-agent-{_stamp()}"),
     ]
     if args.hold_seconds > 0:
         command.extend(("-E", f"hold_seconds={args.hold_seconds}"))
@@ -315,22 +366,34 @@ def agent(args: argparse.Namespace) -> int:
 
 # --- argument parsing ----------------------------------------------------------------------------
 
+
 def build_parser() -> argparse.ArgumentParser:
+    """The inspect-robots-b601 parser, with defaults from B601_PROFILE and B601_STATE_DIR."""
     profile = Path(os.environ.get("B601_PROFILE") or DEFAULT_PROFILE)
     state_dir = Path(os.environ.get("B601_STATE_DIR") or ".hardware-state")
 
-    parser = argparse.ArgumentParser(prog="inspect-robots-b601", description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        prog="inspect-robots-b601",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     commands = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
-    def command(name: str, handler: Handler, *, confirm: bool = False,
-                state: bool = True) -> argparse.ArgumentParser:
+    def command(
+        name: str, handler: Handler, *, confirm: bool = False, state: bool = True
+    ) -> argparse.ArgumentParser:
         sub = commands.add_parser(name, help=handler.__doc__, description=handler.__doc__)
         sub.set_defaults(handler=handler, confirm=confirm, error=sub.error)
-        sub.add_argument("--profile", type=Path, default=profile, help="robot profile (default: %(default)s)")
+        sub.add_argument(
+            "--profile", type=Path, default=profile, help="robot profile (default: %(default)s)"
+        )
         if state:
-            sub.add_argument("--state-dir", type=Path, default=state_dir,
-                             help="stop latch; share it between every command (default: %(default)s)")
+            sub.add_argument(
+                "--state-dir",
+                type=Path,
+                default=state_dir,
+                help="stop latch; share it between every command (default: %(default)s)",
+            )
         if confirm:
             sub.add_argument("--confirm-supported-arm", action="store_true", help=CONFIRM_HELP)
         return sub
@@ -346,15 +409,32 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--delta", type=float, default=0.05)
     sub.add_argument("--duration", type=float, default=2.0)
     sub = command("pose", pose, confirm=True)
-    sub.add_argument("--stage", type=_stage, action="append", required=True,
-                     help="'name=offset,...' in raw radians from the activation pose; repeat for more stages")
-    sub.add_argument("--hold-seconds", type=float, default=0.0, help="hold the last stage before walking home")
+    sub.add_argument(
+        "--stage",
+        type=_stage,
+        action="append",
+        required=True,
+        help="'name=offset,...' in raw radians from the activation pose; repeat for more stages",
+    )
+    sub.add_argument(
+        "--hold-seconds", type=float, default=0.0, help="hold the last stage before walking home"
+    )
     sub.add_argument("--out", type=Path, default=Path("logs") / f"pose-{_stamp()}")
     sub.add_argument("--no-camera", action="store_true")
-    sub.add_argument("--gravity", choices=("profile", "on", "off"), default="profile",
-                     help="gravity feed-forward: follow the profile flag, or force it on/off")
-    sub.add_argument("--home-wait", type=float, default=None,
-                     help="seconds to keep retrying a blocked home before disabling (default: until interrupted)")
+    sub.add_argument(
+        "--gravity",
+        choices=("profile", "on", "off"),
+        default="profile",
+        help="gravity feed-forward: follow the profile flag, or force it on/off",
+    )
+    sub.add_argument(
+        "--home-wait",
+        type=float,
+        default=None,
+        help=(
+            "seconds to keep retrying a blocked home before disabling (default: until interrupted)"
+        ),
+    )
     sub = command("gripper", gripper, confirm=True)
     sub.add_argument("--delta", type=float, default=0.1)
     sub.add_argument("--duration", type=float, default=1.0)
@@ -362,17 +442,32 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--kp", type=float, default=50.0)
     sub.add_argument("--kd", type=float, default=4.0)
     sub = command("agent", agent, confirm=True)
-    sub.add_argument("--inspect-config", type=Path, default=AGENT_CONFIG,
-                     help="Inspect run defaults: model, camera, rates (default: the bundled agent.ini)")
-    sub.add_argument("--instruction", default=(
-        "Move joint2 up by 0.05 radians and move the gripper by 0.04 radians "
-        "from their observed positions, keep the other joints fixed, then finish."))
+    sub.add_argument(
+        "--inspect-config",
+        type=Path,
+        default=AGENT_CONFIG,
+        help="Inspect run defaults: model, camera, rates (default: the bundled agent.ini)",
+    )
+    sub.add_argument(
+        "--instruction",
+        default=(
+            "Move joint2 up by 0.05 radians and move the gripper by 0.04 radians "
+            "from their observed positions, keep the other joints fixed, then finish."
+        ),
+    )
     sub.add_argument("--max-steps", type=int, default=300)
     sub.add_argument("--max-llm-calls", type=int, default=30)
-    sub.add_argument("--ready", default="joint3=0.3;joint2=0.2,joint3=0.6;joint2=0.3,joint3=0.8,joint4=-0.5",
-                     help="scripted stages walked before the agent starts ('' keeps the rest pose)")
-    sub.add_argument("--hold-seconds", type=float, default=0.0,
-                     help="keep the final pose energized after the agent finishes")
+    sub.add_argument(
+        "--ready",
+        default="joint3=0.3;joint2=0.2,joint3=0.6;joint2=0.3,joint3=0.8,joint4=-0.5",
+        help="scripted stages walked before the agent starts ('' keeps the rest pose)",
+    )
+    sub.add_argument(
+        "--hold-seconds",
+        type=float,
+        default=0.0,
+        help="keep the final pose energized after the agent finishes",
+    )
     sub.add_argument("--log-dir", type=Path)
     return parser
 
@@ -384,12 +479,15 @@ def _validate(args: argparse.Namespace) -> None:
     name = args.command
     if name == "hold" and not (0 < args.hold_seconds <= 10 and 0 < args.max_deviation <= 0.5):
         args.error("hold-seconds must be in (0, 10] and max-deviation in (0, 0.5]")
-    if name == "probe" and not (0 <= args.joint <= 6 and 0 < abs(args.delta) <= 0.1 and 0 < args.duration <= 5):
+    if name == "probe" and not (
+        0 <= args.joint <= 6 and 0 < abs(args.delta) <= 0.1 and 0 < args.duration <= 5
+    ):
         args.error("joint must be 0..6, delta magnitude at most 0.1 rad and duration in (0, 5] s")
     if name == "pose" and not 0 <= args.hold_seconds <= 60:
         args.error("hold-seconds must be in [0, 60]")
-    if name == "gripper" and not (0 < abs(args.delta) <= 0.3 and 0 < args.duration <= 3.0
-                                  and 0 < args.torque_cap <= 1.0):
+    if name == "gripper" and not (
+        0 < abs(args.delta) <= 0.3 and 0 < args.duration <= 3.0 and 0 < args.torque_cap <= 1.0
+    ):
         args.error("delta magnitude at most 0.3 rad, duration at most 3 s, torque cap in (0, 1] Nm")
     if name == "agent" and not (1 <= args.max_steps <= 300 and 1 <= args.max_llm_calls <= 30):
         args.error("max-steps must be in [1, 300] and max-llm-calls in [1, 30]")

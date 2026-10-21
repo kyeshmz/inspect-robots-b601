@@ -7,7 +7,9 @@ import inspect_robots_b601
 
 class ApiSnapshotTests(unittest.TestCase):
     def test_public_api(self):
-        self.assertEqual(sorted(inspect_robots_b601.__all__), ["B601Embodiment", "__version__", "run_preflight"])
+        self.assertEqual(
+            sorted(inspect_robots_b601.__all__), ["B601Embodiment", "__version__", "run_preflight"]
+        )
         for name in inspect_robots_b601.__all__:
             self.assertTrue(hasattr(inspect_robots_b601, name), name)
 

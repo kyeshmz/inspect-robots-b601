@@ -28,8 +28,14 @@ from typing import IO, Any, Protocol
 from . import PathLike, Profile
 
 __all__ = [
-    "BITRATE", "BusClaim", "channel_name", "claim_native_bus", "interface_metadata",
-    "interface_problems", "ownership_lock", "shared_lock_path",
+    "BITRATE",
+    "BusClaim",
+    "channel_name",
+    "claim_native_bus",
+    "interface_metadata",
+    "interface_problems",
+    "ownership_lock",
+    "shared_lock_path",
 ]
 
 BITRATE = 1_000_000  # RobStride motors only speak 1 Mbit/s classic CAN.
@@ -44,13 +50,19 @@ class Closable(Protocol):
 def channel_name(profile: Mapping[str, Any]) -> str:
     """The profile's SocketCAN interface name, validated so it is safe in a path."""
     name = profile.get("channel")
-    if (not isinstance(name, str) or not 0 < len(name) <= 15 or name in (".", "..")
-            or any(char in name for char in "/\0") or any(char.isspace() for char in name)):
+    if (
+        not isinstance(name, str)
+        or not 0 < len(name) <= 15
+        or name in (".", "..")
+        or any(char in name for char in "/\0")
+        or any(char.isspace() for char in name)
+    ):
         raise ValueError("profile channel must be a network interface name such as 'can0'")
     return name
 
 
 def shared_lock_path(profile: Mapping[str, Any]) -> Path:
+    """The bus's shared lock file: can_lock, else /run/lock (or /tmp)/b601-<channel>.lock."""
     configured = profile.get("can_lock")
     if configured is not None:
         return Path(configured)
@@ -61,13 +73,16 @@ def shared_lock_path(profile: Mapping[str, Any]) -> Path:
 
 
 def ownership_lock(path: PathLike) -> IO[str]:
+    """Take the exclusive lock at path without waiting; closing the returned stream releases it."""
     fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o660)
     stream = os.fdopen(fd, "a+")
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError as error:
         stream.close()
-        raise BlockingIOError(error.errno, f"another B601 session holds the CAN lock {path}") from None
+        raise BlockingIOError(
+            error.errno, f"another B601 session holds the CAN lock {path}"
+        ) from None
     except BaseException:
         stream.close()
         raise
@@ -87,9 +102,11 @@ def claim_native_bus(path: PathLike | None) -> Closable:
     stream = os.fdopen(fd, "a+")
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BaseException:
+    except BaseException as error:
         stream.close()
-        raise RuntimeError(f"CAN is owned by another controller ({path}); no handoff is performed")
+        raise RuntimeError(
+            f"CAN is owned by another controller ({path}); no handoff is performed"
+        ) from error
     return stream
 
 
@@ -97,23 +114,42 @@ def interface_metadata(channel: str) -> dict[str, Any]:
     """Read sysfs/ip metadata only; never configure the interface."""
     net = Path("/sys/class/net") / channel
     if not net.exists():
-        raise FileNotFoundError(f"CAN interface {channel} does not exist; check `ip link` and the profile channel")
+        raise FileNotFoundError(
+            f"CAN interface {channel} does not exist; check `ip link` and the profile channel"
+        )
     device = (net / "device").resolve(strict=True)
     driver = (device / "driver").resolve(strict=True).name
-    usb = next((p for p in (device, *device.parents)
-                if (p / "idVendor").is_file() and (p / "idProduct").is_file()), None)
-    result = subprocess.run(["ip", "-j", "-details", "link", "show", "dev", channel],
-                            check=True, capture_output=True, text=True, timeout=2)
+    usb = next(
+        (
+            p
+            for p in (device, *device.parents)
+            if (p / "idVendor").is_file() and (p / "idProduct").is_file()
+        ),
+        None,
+    )
+    result = subprocess.run(
+        ["ip", "-j", "-details", "link", "show", "dev", channel],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=2,
+    )
     links = json.loads(result.stdout)
     if len(links) != 1 or links[0].get("ifname") != channel:
         raise RuntimeError("ambiguous CAN interface metadata")
     link = links[0]
     info = link.get("linkinfo", {}).get("info_data", {})
-    return {"channel": channel, "type": int((net / "type").read_text()), "driver": driver,
-            "usb_vendor": None if usb is None else (usb / "idVendor").read_text().strip(),
-            "usb_product": None if usb is None else (usb / "idProduct").read_text().strip(),
-            "flags": link.get("flags", []), "bitrate": info.get("bittiming", {}).get("bitrate"),
-            "ctrlmode": info.get("ctrlmode", []), "can_state": info.get("state")}
+    return {
+        "channel": channel,
+        "type": int((net / "type").read_text()),
+        "driver": driver,
+        "usb_vendor": None if usb is None else (usb / "idVendor").read_text().strip(),
+        "usb_product": None if usb is None else (usb / "idProduct").read_text().strip(),
+        "flags": link.get("flags", []),
+        "bitrate": info.get("bittiming", {}).get("bitrate"),
+        "ctrlmode": info.get("ctrlmode", []),
+        "can_state": info.get("state"),
+    }
 
 
 def interface_problems(info: Mapping[str, Any], profile: Mapping[str, Any]) -> list[str]:
@@ -125,7 +161,9 @@ def interface_problems(info: Mapping[str, Any], profile: Mapping[str, Any]) -> l
     if info.get("type") != _ARPHRD_CAN:
         problems.append("not a CAN interface")
     if "UP" not in (info.get("flags") or []):
-        problems.append(f"interface is down (sudo ip link set {channel} up type can bitrate {BITRATE})")
+        problems.append(
+            f"interface is down (sudo ip link set {channel} up type can bitrate {BITRATE})"
+        )
     if info.get("bitrate") != BITRATE:
         problems.append(f"bitrate is {info.get('bitrate')}, motors need {BITRATE}")
     if info.get("can_state") != "ERROR-ACTIVE":
@@ -150,8 +188,12 @@ class BusClaim:
     bitrate or not the pinned adapter is refused with the list of problems.
     """
 
-    def __init__(self, profile: Profile, *,
-                 metadata_reader: Callable[[str], Mapping[str, Any]] = interface_metadata) -> None:
+    def __init__(
+        self,
+        profile: Profile,
+        *,
+        metadata_reader: Callable[[str], Mapping[str, Any]] = interface_metadata,
+    ) -> None:
         channel = channel_name(profile)
         self._native = claim_native_bus(profile.get("native_owner_lock"))
         try:
@@ -168,6 +210,7 @@ class BusClaim:
             raise
 
     def close(self) -> None:
+        """Release both locks, the shared one first."""
         try:
             self._shared.close()
         finally:

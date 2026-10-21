@@ -20,13 +20,13 @@ class FakeMotor:
         self.enabled = False
         self.caps = {}
         self.disabled_at = None  # position when torque was removed
-        self.ceiling = None      # blocked: the joint cannot go above this
-        self.forced = None       # an external push: reads this regardless of command
-        self.broken = False      # CAN I/O failure
+        self.ceiling = None  # blocked: the joint cannot go above this
+        self.forced = None  # an external push: reads this regardless of command
+        self.broken = False  # CAN I/O failure
         self.slow_reads = False  # replies never arrive; each read waits out its timeout
         self.broken_reads = False  # position reads fail instantly, commands still work
         self.taus = []
-        self.fault = 0           # fault word from the motor's fault report
+        self.fault = 0  # fault word from the motor's fault report
 
     def robstride_get_param_f32(self, parameter, timeout_ms=1000):
         if self.slow_reads:
@@ -54,7 +54,9 @@ class FakeMotor:
         self.position = position if self.ceiling is None else min(position, self.ceiling)
 
     def get_state(self):
-        return SimpleNamespace(status_code=0, pos=self.position, vel=0.0, torq=0.4, t_mos=36.0, t_rotor=0.0)
+        return SimpleNamespace(
+            status_code=0, pos=self.position, vel=0.0, torq=0.4, t_mos=36.0, t_rotor=0.0
+        )
 
     def robstride_get_fault_report(self):
         return self.fault, 0
@@ -95,17 +97,29 @@ class SessionTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.legacy = Path(self.directory.name) / "legacy.json"
-        self.legacy.write_text(json.dumps({
-            "schema_version": 1, "latched": True, "last_stop_unix_s": 0,
-        }))
+        self.legacy.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "latched": True,
+                    "last_stop_unix_s": 0,
+                }
+            )
+        )
         self.state_dir = Path(self.directory.name) / "state"
         self.state_dir.mkdir()
-        (self.state_dir / "stop-state.json").write_text(json.dumps({
-            "schema_version": 1, "stopped": False,
-            "acknowledged_legacy_sha256":
-                __import__("hashlib").sha256(self.legacy.read_bytes()).hexdigest(),
-            "reason": "test recovery",
-        }))
+        (self.state_dir / "stop-state.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "stopped": False,
+                    "acknowledged_legacy_sha256": __import__("hashlib")
+                    .sha256(self.legacy.read_bytes())
+                    .hexdigest(),
+                    "reason": "test recovery",
+                }
+            )
+        )
         profile = json.loads(DEFAULT_PROFILE.read_text())
         profile["legacy_stop_latch"] = str(self.legacy)
         profile["gravity_feedforward"] = False  # fakes ignore torque; FF has its own tests
@@ -120,9 +134,14 @@ class SessionTests(unittest.TestCase):
     def session(self, **kwargs):
         kwargs.setdefault("home_wait", 0.0)
         kwargs.setdefault("home_retry_s", 0.01)
-        session = ArmSession(self.profile, self.state_dir,
-                                   controller_factory=lambda channel: self.controller,
-                                   bus_factory=self.claim, period=0.005, **kwargs)
+        session = ArmSession(
+            self.profile,
+            self.state_dir,
+            controller_factory=lambda channel: self.controller,
+            bus_factory=self.claim,
+            period=0.005,
+            **kwargs,
+        )
         self.addCleanup(session.close)
         return session
 
@@ -156,8 +175,12 @@ class SessionTests(unittest.TestCase):
     def test_bus_is_claimed_for_the_profile_channel_and_released_on_close(self):
         channels = []
         self.profile["channel"] = "can7"
-        session = ArmSession(self.profile, self.state_dir, bus_factory=self.claim,
-                                   controller_factory=lambda channel: channels.append(channel) or self.controller)
+        session = ArmSession(
+            self.profile,
+            self.state_dir,
+            bus_factory=self.claim,
+            controller_factory=lambda channel: channels.append(channel) or self.controller,
+        )
         self.addCleanup(session.close)
         session.open()
         self.assertEqual(channels, ["can7"])
@@ -170,8 +193,13 @@ class SessionTests(unittest.TestCase):
         state_dir = Path(self.directory.name) / "fresh"
 
         def session():
-            created = ArmSession(self.profile, state_dir, bus_factory=self.claim,
-                                       controller_factory=lambda channel: self.controller, period=0.005)
+            created = ArmSession(
+                self.profile,
+                state_dir,
+                bus_factory=self.claim,
+                controller_factory=lambda channel: self.controller,
+                period=0.005,
+            )
             self.addCleanup(created.close)
             return created
 
@@ -188,9 +216,15 @@ class SessionTests(unittest.TestCase):
 
     def test_read_reports_every_motor_and_the_latch_without_enabling(self):
         self.controller.motors[6].fault = 0x08
-        report = read(self.profile, self.state_dir, controller_factory=lambda channel: self.controller,
-                      bus_factory=self.claim)
-        self.assertEqual(list(report["positions_rad"]), [f"joint{i}" for i in range(1, 7)] + ["gripper"])
+        report = read(
+            self.profile,
+            self.state_dir,
+            controller_factory=lambda channel: self.controller,
+            bus_factory=self.claim,
+        )
+        self.assertEqual(
+            list(report["positions_rad"]), [f"joint{i}" for i in range(1, 7)] + ["gripper"]
+        )
         self.assertEqual(report["faults"]["gripper"], {"fault": 0x08, "warning": 0})
         self.assertFalse(report["stop"]["stopped"])
         self.assertFalse(any(motor.enabled for motor in self.controller.motors))
@@ -199,11 +233,17 @@ class SessionTests(unittest.TestCase):
     def test_recover_acknowledges_a_new_arm_after_fresh_reads(self):
         state_dir = self.fresh_state()
         self.assertTrue(StopLedger(state_dir).stopped)
-        result = recover(self.profile, state_dir, controller_factory=lambda channel: self.controller,
-                         bus_factory=self.claim)
+        result = recover(
+            self.profile,
+            state_dir,
+            controller_factory=lambda channel: self.controller,
+            bus_factory=self.claim,
+        )
         self.assertTrue(result["prior"]["stopped"])
         self.assertFalse(StopLedger(state_dir).stopped)
-        self.assertEqual(StopLedger(state_dir).snapshot()["details"]["fresh_positions_rad"]["joint1"], 0.0)
+        self.assertEqual(
+            StopLedger(state_dir).snapshot()["details"]["fresh_positions_rad"]["joint1"], 0.0
+        )
         self.assertFalse(any(motor.enabled for motor in self.controller.motors))
         self.assertTrue(self.claims[0].closed)
 
@@ -211,13 +251,21 @@ class SessionTests(unittest.TestCase):
         state_dir = self.fresh_state()
         self.controller.motors[3].fault = 0x04
         with self.assertRaisesRegex(RuntimeError, "motor faults on joint4"):
-            recover(self.profile, state_dir, controller_factory=lambda channel: self.controller,
-                    bus_factory=self.claim)
+            recover(
+                self.profile,
+                state_dir,
+                controller_factory=lambda channel: self.controller,
+                bus_factory=self.claim,
+            )
         self.controller.motors[3].fault = 0
         self.controller.motors[2].broken = True
         with self.assertRaises(OSError):
-            recover(self.profile, state_dir, controller_factory=lambda channel: self.controller,
-                    bus_factory=self.claim)
+            recover(
+                self.profile,
+                state_dir,
+                controller_factory=lambda channel: self.controller,
+                bus_factory=self.claim,
+            )
         self.assertTrue(StopLedger(state_dir).stopped)
         self.assertTrue(all(claim.closed for claim in self.claims))
 
@@ -227,9 +275,11 @@ class SessionTests(unittest.TestCase):
             ArmSession(self.profile, self.state_dir)
 
     def test_missing_motorbridge_is_explained(self):
-        with patch.object(session_module, "Controller", None):
-            with self.assertRaisesRegex(RuntimeError, r"inspect-robots-b601\[motorbridge\]"):
-                session_module._default_controller("can0")
+        with (
+            patch.object(session_module, "Controller", None),
+            self.assertRaisesRegex(RuntimeError, r"inspect-robots-b601\[motorbridge\]"),
+        ):
+            session_module._default_controller("can0")
 
     def test_target_bounds_and_step_are_rejected(self):
         session = self.session()
@@ -354,6 +404,7 @@ class SessionTests(unittest.TestCase):
 
     def test_profile_flag_selects_the_urdf_gravity_model(self):
         from inspect_robots_b601.hardware.gravity import compensation_torques
+
         self.profile["gravity_feedforward"] = True
         self.assertIs(self.session()._gravity, compensation_torques)
         self.profile["gravity_feedforward"] = False
@@ -368,8 +419,15 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(len(logs), 1)
         records = [json.loads(line) for line in logs[0].read_text().splitlines()]
         statuses = [record["status"] for record in records]
-        for status in ("motor-log-start", "session-open", "motors-enabled", "actuator-output",
-                       "path-start", "motors-disabled", "motor-log-end"):
+        for status in (
+            "motor-log-start",
+            "session-open",
+            "motors-enabled",
+            "actuator-output",
+            "path-start",
+            "motors-disabled",
+            "motor-log-end",
+        ):
             self.assertIn(status, statuses)
         self.assertLess(statuses.index("path-start"), statuses.index("motors-disabled"))
         disabled = next(record for record in records if record["status"] == "motors-disabled")

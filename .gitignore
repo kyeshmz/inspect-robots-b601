@@ -9,5 +9,7 @@ __pycache__/
 /logs/
 /.hardware-state/
 /.env
-# Local leftovers of the ROS 2 stack this repository used to carry.
-/ros2/
+.coverage
+coverage.xml
+.mypy_cache/
+.ruff_cache/

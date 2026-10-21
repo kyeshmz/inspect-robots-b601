@@ -1,7 +1,0 @@
-{
-  "source": "https://github.com/Seeed-Projects/reBotArmController_ROS2/blob/7506dc0fc5c2a7787dcb974d89d13f9f49d16d61/src/rebotarm_bringup/description/RS/urdf/ReBot_Arm_RS.urdf",
-  "scope": "Nominal mock URDF limits, not physical calibration",
-  "joints": ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
-  "lower": [-2.8, 0.0, 0.0, -1.57, -1.57, -3.14],
-  "upper": [2.8, 3.14, 3.14, 1.57, 1.57, 3.14]
-}

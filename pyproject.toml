@@ -1,84 +1,108 @@
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.18", "hatch-vcs>=0.3", "hatch-fancy-pypi-readme>=24.1"]
+build-backend = "hatchling.build"
 
 [project]
 name = "inspect-robots-b601"
-version = "0.4.0"
-description = "Seeed B601-RS embodiments and measured-state benchmarks for Inspect Robots"
-readme = "README.md"
+dynamic = ["version", "readme"]
+description = "Inspect Robots adapter for Seeed reBot Arm B601-RS arms driven directly over SocketCAN."
 requires-python = ">=3.10,<3.13"
-dependencies = ["inspect-robots==0.60.0", "numpy>=1.24,<2", "pillow>=10,<13"]
-classifiers = ["Programming Language :: Python :: 3", "Operating System :: POSIX :: Linux", "Typing :: Typed", "Development Status :: 3 - Alpha"]
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "RoboCurve" }]
+keywords = ["robotics", "vla", "b601", "rebot-arm", "robstride", "socketcan", "inspect-robots"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = ["inspect-robots==0.60.0", "numpy>=1.24,<3", "pillow>=10,<13"]
 
 [project.optional-dependencies]
-agent = ["inspect-robots-agent==0.28.0"]
+# The RobStride motor driver over SocketCAN. Pinned: the session relies on its 0.5.6 API.
 motorbridge = ["motorbridge==0.5.6"]
-test = ["pytest>=8,<9", "httpx>=0.27,<1", "inspect-robots-agent==0.28.0", "tomli>=2; python_version<'3.11'"]
-dev = ["inspect-robots-b601[test]", "build>=1.2,<2", "twine>=6,<7", "mypy>=1.11,<2", "ruff>=0.6,<1", "pytest-cov>=5,<8", "tomli>=2; python_version<'3.11'"]
-art = ["cairosvg>=2.7,<3"]
+# Inspect Robots's LLM agent policy, used by `inspect-robots-b601 agent`.
+agent = ["inspect-robots-agent==0.28.0"]
+dev = ["pytest>=8.0", "mypy>=1.11", "build>=1.2"]
 
 [project.urls]
-Repository = "https://github.com/kyeshmz/inspect-robots-b601"
+Homepage = "https://github.com/kyeshmz/inspect-robots-b601"
 Issues = "https://github.com/kyeshmz/inspect-robots-b601/issues"
-Documentation = "https://github.com/kyeshmz/inspect-robots-b601/blob/main/docs/quickstart.md"
-Changelog = "https://github.com/kyeshmz/inspect-robots-b601/blob/main/CHANGELOG.md"
+Framework = "https://github.com/robocurve/inspect-robots"
+Motorbridge = "https://motorbridge.seeedstudio.com"
 
+# Inspect Robots discovers this by entry point; no import needed for `inspect-robots list`.
 [project.entry-points."inspect_robots.embodiments"]
-b601_ros = "inspect_robots_b601:B601Embodiment"
-b601_motorbridge = "inspect_robots_b601:MotorbridgeB601Embodiment"
-
-[project.entry-points."inspect_robots.tasks"]
-"b601/hold" = "inspect_robots_b601.benchmarks:hold"
-"b601/joint1-nudge" = "inspect_robots_b601.benchmarks:joint1_nudge"
-
-[project.entry-points."inspect_robots.policies"]
-b601_scripted = "inspect_robots_b601.benchmarks:JointGoalPolicy"
-
-[project.entry-points."inspect_robots.scorers"]
-b601_measured_goal = "inspect_robots_b601.benchmarks:MeasuredJointGoal"
+b601 = "inspect_robots_b601.embodiment:B601Embodiment"
 
 [project.scripts]
-b601-evaluate = "inspect_robots_b601.evaluate:main"
-b601-commission = "b601_hardware.direct:main"
+inspect-robots-b601 = "inspect_robots_b601.cli:main"
+inspect-robots-b601-preflight = "inspect_robots_b601.preflight:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["inspect_robots_b601*", "b601_hardware*"]
-namespaces = false
+[tool.hatch.build.targets.wheel]
+packages = ["src/inspect_robots_b601"]
 
-[tool.setuptools.package-data]
-inspect_robots_b601 = ["py.typed"]
-b601_hardware = ["py.typed"]
+[tool.hatch.build.targets.sdist]
+include = ["/src/inspect_robots_b601", "/tests", "/README.md", "/LICENSE"]
+
+
+# ---------------------------------------------------------------------------
+# Versioning: single-source the version from git tags via hatch-vcs (a release
+# cuts a vX.Y.Z tag; nothing is committed to main).
+# ---------------------------------------------------------------------------
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# Before/without tags (e.g. shallow checkouts), fall back instead of failing.
+version_scheme = "guess-next-dev"
+fallback_version = "0.0.0"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+# tests/packaging checks an installed wheel and runs on its own (see README).
+addopts = "-ra --strict-markers --ignore=tests/packaging"
+
+# PyPI readme: identical to README.md except GitHub-only alert syntax
+# (e.g. `> [!NOTE]`) is rewritten to bold blockquotes, which PyPI renders.
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^> \[!NOTE\][ \t]*$'
+replacement = '> **Note:**'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^> \[!TIP\][ \t]*$'
+replacement = '> **Tip:**'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^> \[!IMPORTANT\][ \t]*$'
+replacement = '> **Important:**'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^> \[!WARNING\][ \t]*$'
+replacement = '> **Warning:**'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '(?m)^> \[!CAUTION\][ \t]*$'
+replacement = '> **Caution:**'
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
-warn_unreachable = true
-files = ["src", "tests/typing"]
+files = ["src/inspect_robots_b601"]
 
+# Motorbridge ships no type information, and the RealSense modules are system packages
+# imported lazily on the camera path.
 [[tool.mypy.overrides]]
-module = ["rclpy.*", "action_msgs.*", "control_msgs.*", "rcl_interfaces.*", "sensor_msgs.*", "trajectory_msgs.*", "rebotarm_msgs.*", "motorbridge.*"]
+module = ["motorbridge", "motorbridge.*", "pyrealsense2", "pyrealsense2.*", "rs_depth"]
 ignore_missing_imports = true
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-src = ["src", "tests"]
-
-[tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I", "UP"]
-
-[tool.coverage.run]
-branch = true
-source = ["inspect_robots_b601", "b601_hardware"]
-
-[tool.coverage.report]
-show_missing = true
-fail_under = 75
-exclude_also = ["if TYPE_CHECKING:", "if __name__ == .__main__.:", "@(abc\\.)?abstractmethod", "^\\s*\\.\\.\\.$"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra --strict-markers"
-markers = ["ros: requires ROS 2 Humble and a test-only messages overlay"]

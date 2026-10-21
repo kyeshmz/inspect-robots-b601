@@ -1,0 +1,88 @@
+{
+  "name": "b601-rs",
+  "coordinate_frame": "raw_motor_radians",
+  "channel": "can0",
+  "gravity_feedforward": true,
+  "joints": [
+    {
+      "name": "joint1",
+      "native_name": "shoulder_pan",
+      "motor_id": 1,
+      "model": "rs-06",
+      "lower": -2.530727415391778,
+      "upper": 2.530727415391778,
+      "kp": 50.0,
+      "kd": 3.0,
+      "torque_cap_nm": 36.0
+    },
+    {
+      "name": "joint2",
+      "native_name": "shoulder_lift",
+      "motor_id": 2,
+      "model": "rs-06",
+      "lower": 0.0,
+      "upper": 2.9670597283903604,
+      "kp": 150.0,
+      "kd": 10.0,
+      "torque_cap_nm": 36.0
+    },
+    {
+      "name": "joint3",
+      "native_name": "elbow_flex",
+      "motor_id": 3,
+      "model": "rs-06",
+      "lower": 0.0,
+      "upper": 3.490658503988659,
+      "kp": 150.0,
+      "kd": 10.0,
+      "torque_cap_nm": 36.0
+    },
+    {
+      "name": "joint4",
+      "native_name": "wrist_flex",
+      "motor_id": 4,
+      "model": "rs-00",
+      "lower": -1.3962634015954636,
+      "upper": 1.5707963267948966,
+      "kp": 50.0,
+      "kd": 5.0,
+      "torque_cap_nm": 14.0
+    },
+    {
+      "name": "joint5",
+      "native_name": "wrist_yaw",
+      "motor_id": 5,
+      "model": "rs-00",
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966,
+      "kp": 50.0,
+      "kd": 4.0,
+      "torque_cap_nm": 14.0
+    },
+    {
+      "name": "joint6",
+      "native_name": "wrist_roll",
+      "motor_id": 6,
+      "model": "rs-00",
+      "lower": -1.5707963267948966,
+      "upper": 1.5707963267948966,
+      "kp": 50.0,
+      "kd": 4.0,
+      "torque_cap_nm": 14.0
+    }
+  ],
+  "gripper": {
+    "name": "gripper",
+    "motor_id": 7,
+    "model": "rs-00",
+    "lower": -0.1,
+    "upper": 4.7,
+    "kp": 50.0,
+    "kd": 4.0,
+    "torque_cap_nm": 1.0
+  },
+  "provenance": {
+    "source": "B601-RS joint limits, motor IDs and models from the LeRobot RS motor profile; gains and torque caps from the all-joint bring-up",
+    "qualification": "Not a full-arm mechanical or collision qualification"
+  }
+}

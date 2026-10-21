@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Checkout launcher: sets up the repository venv, runs the tests, and runs every
+# other inspect-robots-b601 command from the repository root with .env loaded.
+set -euo pipefail
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV="$ROOT/.inspect-venv"
+cd "$ROOT"
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  source "$ROOT/.env"
+  set +a
+fi
+MODE="${1:-help}"
+case "$MODE" in
+  help|-h|--help)
+    cat <<'HELP'
+usage: scripts/inspect-robots-b601 COMMAND [ARGS]
+
+  setup       create .inspect-venv and install this checkout (editable, with dev tools)
+  test        hardware-free test suite, then mypy --strict
+  preflight   conformance and runtime check of the b601 embodiment
+
+Any other COMMAND is passed to the installed inspect-robots-b601 command: check,
+read, recover, hold, probe, pose, gripper, agent.
+Run `scripts/inspect-robots-b601 COMMAND --help` for its options.
+HELP
+    exit 0 ;;
+  setup)
+    shift
+    [[ $# == 0 ]] || { echo 'setup takes no arguments' >&2; exit 2; }
+    # System site packages keep a distribution-installed pyrealsense2 visible.
+    [[ -x "$VENV/bin/python" ]] || python3 -m venv --system-site-packages "$VENV"
+    "$VENV/bin/python" -m pip install --no-cache-dir 'pip==25.3'
+    exec "$VENV/bin/python" -m pip install --no-cache-dir -e "$ROOT[motorbridge,agent,dev]" ;;
+  test)
+    shift
+    "$VENV/bin/python" -m pytest "$@"
+    exec "$VENV/bin/python" -m mypy ;;
+  preflight)
+    shift
+    exec "$VENV/bin/inspect-robots-b601-preflight" "$@" ;;
+esac
+[[ -x "$VENV/bin/inspect-robots-b601" ]] || { echo 'Run scripts/inspect-robots-b601 setup first' >&2; exit 1; }
+exec "$VENV/bin/inspect-robots-b601" "$@"

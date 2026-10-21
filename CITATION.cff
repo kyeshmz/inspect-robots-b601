@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Inspect Robots B601: an embodiment adapter for Seeed reBot Arm B601-RS arms"
+authors:
+  - name: "RoboCurve"
+type: software
+license: MIT
+repository-code: "https://github.com/kyeshmz/inspect-robots-b601"
+version: "0.1.1"

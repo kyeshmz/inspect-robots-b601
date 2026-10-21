@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint · type
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      - name: Install from uv.lock (dev extras)
+        run: uv sync --locked --python 3.12 --extra dev
+      - name: Ruff (lint)
+        run: uv run ruff check .
+      - name: Ruff (format check)
+        run: uv run ruff format --check .
+      - name: Mypy (strict)
+        run: uv run mypy
+
+  test:
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      # The agent extra lets tests/test_ecosystem.py drive the real inspect-robots CLI
+      # with the LLM agent policy against a local fake model. No CAN, motors or camera.
+      - name: Install from uv.lock (dev and agent extras)
+        run: uv sync --locked --python ${{ matrix.python-version }} --extra dev --extra agent
+      - name: Pytest (coverage gate)
+        run: uv run pytest --cov --cov-report=term-missing
+
+  import-hygiene:
+    name: import with minimal dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+            **/uv.lock
+      - name: Install package with only locked core pins
+        run: |
+          uv venv --python 3.12
+          uv pip install --no-deps .
+          uv export --locked --no-emit-project --no-hashes \
+            | grep -E '^(inspect-robots|numpy|pillow)==' > /tmp/minimal-locked.txt
+          uv pip install -r /tmp/minimal-locked.txt
+      - name: Assert hardware integrations absent, then import and construct
+        run: |
+          .venv/bin/python - <<'PY'
+          import importlib.util
+          for mod in ("motorbridge", "pyrealsense2", "rs_depth", "inspect_robots_agent"):
+              assert importlib.util.find_spec(mod) is None, f"{mod} unexpectedly installed"
+          import inspect_robots_b601
+          from inspect_robots_b601 import B601Embodiment
+
+          # Construction is inert: it reads the stock profile and opens nothing.
+          info = B601Embodiment().info
+          assert info.action_space.shape == (7,), info.action_space.shape
+          print("inspect_robots_b601", inspect_robots_b601.__version__, "imported with minimal deps")
+          PY
+
+  ci-ok:
+    name: ci-ok
+    if: ${{ always() }}
+    needs: [quality, test, import-hygiene]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every needed job succeeded
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: echo "$RESULTS" | jq -e 'all(.[]; .result == "success")'
+
+  alert-red-main:
+    name: alert on red main
+    if: ${{ failure() && github.event_name == 'push' }}
+    needs: [quality, test, import-hygiene]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue unless one is already open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "CI is red on main in:title" --json number --jq length)
+          if [ "$existing" = "0" ]; then
+            gh issue create -R "$GITHUB_REPOSITORY" \
+              --title "CI is red on main (${GITHUB_SHA:0:8})" \
+              --body "CI failed on a push to main: $RUN_URL. Stop the line: fix forward or revert before merging anything else. If the failure is transient, re-run the failed jobs and close this issue."
+          else
+            echo "an open red-main issue already exists; not filing another"
+          fi

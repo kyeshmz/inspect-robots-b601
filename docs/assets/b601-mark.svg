@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420" viewBox="0 0 420 420" role="img" aria-label="B601 mark: a line-art six-axis desktop arm reaching its gripper down to a single dot">
+  <rect width="420" height="420" rx="84" fill="#FFFAED"/>
+  <g stroke="#005f73" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- ground -->
+    <line x1="96" y1="302" x2="330" y2="302"/>
+    <!-- base plate -->
+    <path d="M110 302 L119 280 H161 L170 302"/>
+    <!-- links: turret, upper arm, forearm, wrist -->
+    <path d="M140 280 V250 L158 158 L276 196 V224"/>
+    <!-- parallel gripper: palm and two jaws -->
+    <path d="M266 258 L259 250 V224 H293 V250 L286 258"/>
+    <!-- joints: shoulder, elbow, wrist -->
+    <circle cx="140" cy="250" r="18" fill="#FFFAED"/>
+    <circle cx="158" cy="158" r="15" fill="#FFFAED"/>
+    <circle cx="276" cy="196" r="12" fill="#FFFAED"/>
+  </g>
+  <!-- the specimen dot, same spot as in the Inspect Robots logo -->
+  <circle cx="276" cy="288" r="7" fill="#005f73"/>
+  <text x="336" y="128" text-anchor="end" fill="#005f73" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="52" font-weight="700">B601</text>
+</svg>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="inspect-robots-b601: the Inspect Robots logo, a robot inspecting a dot through a lens, beside a B601 mark of a robot arm reaching down to the same dot. Inspect Robots evals on the Seeed reBot Arm B601-RS.">
+  <style>
+    .eye { transform-box: fill-box; transform-origin: center; animation: ir-blink 5.3s ease-in-out infinite; }
+    @keyframes ir-blink {
+      0%, 10%, 14%, 46%, 50%, 54%, 78%, 82%, 100% { transform: scaleY(1); }
+      12%, 48%, 52%, 80% { transform: scaleY(0.08); }
+    }
+    @media (prefers-reduced-motion: reduce) { .eye { animation: none; } }
+  </style>
+  <rect width="1280" height="320" rx="24" fill="#e2f1ef"/>
+
+  <!-- Inspect Robots logo (robocurve/inspect-robots, MIT), 420 -> 200 px -->
+  <g transform="translate(96 60) scale(.47619)">
+    <rect width="420" height="420" rx="84" fill="#FFFAED"/>
+    <g stroke="#005f73" stroke-width="11" stroke-linecap="round" fill="none">
+      <line x1="96" y1="302" x2="330" y2="302"/>
+      <path d="M138 302 C132 240 150 196 208 182"/>
+      <path d="M186 226 C208 238 222 248 236 256"/>
+      <ellipse cx="262" cy="248" rx="26" ry="16" transform="rotate(-18 262 248)"/>
+      <circle cx="232" cy="170" r="40" fill="#FFFAED"/>
+    </g>
+    <circle class="eye" cx="243" cy="186" r="6" fill="#005f73"/>
+    <circle cx="276" cy="288" r="7" fill="#005f73"/>
+  </g>
+
+  <!-- times -->
+  <path d="M321 149 L343 171 M343 149 L321 171" stroke="#005f73" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- B601 mark, 420 -> 200 px -->
+  <g transform="translate(368 60) scale(.47619)">
+    <rect width="420" height="420" rx="84" fill="#FFFAED"/>
+    <g stroke="#005f73" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <line x1="96" y1="302" x2="330" y2="302"/>
+      <path d="M110 302 L119 280 H161 L170 302"/>
+      <path d="M140 280 V250 L158 158 L276 196 V224"/>
+      <path d="M266 258 L259 250 V224 H293 V250 L286 258"/>
+      <circle cx="140" cy="250" r="18" fill="#FFFAED"/>
+      <circle cx="158" cy="158" r="15" fill="#FFFAED"/>
+      <circle cx="276" cy="196" r="12" fill="#FFFAED"/>
+    </g>
+    <circle cx="276" cy="288" r="7" fill="#005f73"/>
+    <text x="336" y="128" text-anchor="end" fill="#005f73" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="52" font-weight="700">B601</text>
+  </g>
+
+  <g font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="624" y="139" fill="#003f4d" font-size="54" font-weight="700">inspect-robots-b601</text>
+    <text fill="#005f73" font-size="24">
+      <tspan x="626" y="189">Inspect Robots evals on the</tspan>
+      <tspan x="626" y="221">Seeed reBot Arm B601-RS</tspan>
+    </text>
+  </g>
+</svg>

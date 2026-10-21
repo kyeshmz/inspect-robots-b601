@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/kyeshmz/inspect-robots-b601/main/docs/assets/banner.svg" alt="Inspect Robots × B601: the Inspect Robots logo beside a line-art B601 arm reaching for the same dot" width="100%">
+
 # inspect-robots-b601
 
 Run [Inspect Robots](https://github.com/robocurve/inspect-robots) evals on real
@@ -7,6 +9,7 @@ Seeed [reBot Arm B601-RS](https://github.com/Seeed-Projects/reBot-DevArm) arms,
 driven directly over SocketCAN with [Motorbridge](https://motorbridge.seeedstudio.com).
 
 ![Status: alpha](https://img.shields.io/badge/status-alpha-blue)
+[![CI](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/ci.yml/badge.svg)](https://github.com/kyeshmz/inspect-robots-b601/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Built on Inspect Robots](https://img.shields.io/badge/built%20on-Inspect%20Robots-indigo)](https://github.com/robocurve/inspect-robots)
 
@@ -120,9 +123,11 @@ from inspect_robots.approver import DeltaLimitApprover
 from inspect_robots.registry import resolve
 from inspect_robots_b601 import B601Embodiment
 
+
 def grade_trial(record, _scene):
     record.operator_judgement = input("Outcome? [y/n/partial/skip]: ")
     record.operator_note = input("Grader note (optional): ")
+
 
 task = Task(
     name="operator-graded-gripper",
@@ -133,14 +138,20 @@ task = Task(
 emb = B601Embodiment(
     channel="can0",
     camera="realsense+depth:640x480@30",
-    allow_motion=True, activate_on_reset=True, operator_supported_arm=True,
+    allow_motion=True,
+    activate_on_reset=True,
+    operator_supported_arm=True,
 )
 pol = resolve("policy", "agent", model="provider/model")
 
 with emb:  # walks home and disables the motors, even if the eval raises
-    (log,) = eval(task, pol, emb,
-                  approver=DeltaLimitApprover(emb.info.action_space),
-                  before_scoring=grade_trial)
+    (log,) = eval(
+        task,
+        pol,
+        emb,
+        approver=DeltaLimitApprover(emb.info.action_space),
+        before_scoring=grade_trial,
+    )
 print(log.status)
 ```
 
@@ -240,9 +251,12 @@ checkout, `scripts/inspect-robots-b601` loads them from `.env` (see
 ## Development
 
 ```bash
-uv venv && uv pip install -e ".[dev]"
-uv run pytest
+uv sync --extra dev --extra agent              # from uv.lock, as CI does
+uv run ruff check .
+uv run ruff format --check .
 uv run mypy                                    # --strict over src/inspect_robots_b601
+uv run pytest --cov
+uv run pre-commit install                      # lint and types on commit, tests on push
 ```
 
 The suite needs no CAN, Motorbridge, camera or model: the motor controller, bus,
@@ -253,6 +267,25 @@ cover their tasks). `tests/packaging/test_installed.py` checks a built
 wheel in a clean environment (`python -I tests/packaging/test_installed.py`). Set
 `REBOTARM_CONTROL_PY` to a checkout of Seeed's reBotArm_control_py to recheck the
 vendored gravity model against its URDF.
+
+Dependency changes require `uv lock`. CI installs with `uv sync --locked`, and a
+weekly canary resolves the newest versions the ranges allow, without the lockfile.
+Design decisions, including the full list of limits on each move, are recorded
+in [`plans/`](plans/).
+
+## Citation
+
+```bibtex
+@software{inspect-robots-b601,
+  author  = {RoboCurve},
+  title   = {Inspect Robots B601: an embodiment adapter for Seeed reBot Arm B601-RS arms},
+  year    = {2026},
+  url     = {https://github.com/kyeshmz/inspect-robots-b601},
+  license = {MIT}
+}
+```
+
+See [`CITATION.cff`](CITATION.cff) for citation metadata.
 
 ## License
 
